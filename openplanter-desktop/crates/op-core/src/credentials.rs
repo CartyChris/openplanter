@@ -16,6 +16,7 @@ pub struct CredentialBundle {
     pub anthropic_api_key: Option<String>,
     pub openrouter_api_key: Option<String>,
     pub cerebras_api_key: Option<String>,
+    pub google_api_key: Option<String>,
     pub exa_api_key: Option<String>,
     pub voyage_api_key: Option<String>,
 }
@@ -23,11 +24,12 @@ pub struct CredentialBundle {
 impl CredentialBundle {
     /// Returns `true` if any key has a non-empty value.
     pub fn has_any(&self) -> bool {
-        let keys: [&Option<String>; 6] = [
+        let keys: [&Option<String>; 7] = [
             &self.openai_api_key,
             &self.anthropic_api_key,
             &self.openrouter_api_key,
             &self.cerebras_api_key,
+            &self.google_api_key,
             &self.exa_api_key,
             &self.voyage_api_key,
         ];

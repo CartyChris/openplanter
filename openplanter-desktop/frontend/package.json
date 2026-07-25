@@ -13,11 +13,13 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
+    "@types/three": "^0.169.0",
     "cytoscape": "^3.30.0",
     "cytoscape-dagre": "^2.5.0",
     "cytoscape-fcose": "^2.2.0",
     "highlight.js": "^11.10.0",
-    "markdown-it": "^14.1.0"
+    "markdown-it": "^14.1.0",
+    "three": "^0.169.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
