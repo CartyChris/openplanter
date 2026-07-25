@@ -14,6 +14,8 @@ pub static PROVIDER_DEFAULT_MODELS: LazyLock<HashMap<&'static str, &'static str>
             ("openrouter", "anthropic/claude-sonnet-4-5"),
             ("cerebras", "qwen-3-235b-a22b-instruct-2507"),
             ("ollama", "llama3.2"),
+            ("google", "gemini-2.5-pro"),
+            ("lmstudio", "local-model"),
         ])
     });
 
@@ -56,6 +58,8 @@ pub struct AgentConfig {
     pub openrouter_base_url: String,
     pub cerebras_base_url: String,
     pub ollama_base_url: String,
+    pub google_base_url: String,
+    pub lmstudio_base_url: String,
     pub exa_base_url: String,
 
     // API keys
@@ -64,8 +68,13 @@ pub struct AgentConfig {
     pub anthropic_api_key: Option<String>,
     pub openrouter_api_key: Option<String>,
     pub cerebras_api_key: Option<String>,
+    pub google_api_key: Option<String>,
     pub exa_api_key: Option<String>,
     pub voyage_api_key: Option<String>,
+
+    /// Optional sampling temperature override for OpenAI-compatible providers.
+    /// `None` preserves the deterministic default (0.0).
+    pub temperature: Option<f64>,
 
     // Limits
     pub max_depth: i64,
@@ -101,14 +110,18 @@ impl Default for AgentConfig {
             openrouter_base_url: "https://openrouter.ai/api/v1".into(),
             cerebras_base_url: "https://api.cerebras.ai/v1".into(),
             ollama_base_url: "http://localhost:11434/v1".into(),
+            google_base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
+            lmstudio_base_url: "http://localhost:1234/v1".into(),
             exa_base_url: "https://api.exa.ai".into(),
             api_key: None,
             openai_api_key: None,
             anthropic_api_key: None,
             openrouter_api_key: None,
             cerebras_api_key: None,
+            google_api_key: None,
             exa_api_key: None,
             voyage_api_key: None,
+            temperature: None,
             max_depth: 4,
             max_steps_per_call: 100,
             max_observation_chars: 6000,
@@ -147,6 +160,10 @@ impl AgentConfig {
 
         let cerebras_api_key = env_opt("OPENPLANTER_CEREBRAS_API_KEY")
             .or_else(|| env_opt("CEREBRAS_API_KEY"));
+
+        let google_api_key = env_opt("OPENPLANTER_GOOGLE_API_KEY")
+            .or_else(|| env_opt("GOOGLE_API_KEY"))
+            .or_else(|| env_opt("GEMINI_API_KEY"));
 
         let exa_api_key = env_opt("OPENPLANTER_EXA_API_KEY")
             .or_else(|| env_opt("EXA_API_KEY"));
@@ -200,13 +217,25 @@ impl AgentConfig {
                 "OPENPLANTER_OLLAMA_BASE_URL",
                 "http://localhost:11434/v1",
             ),
+            google_base_url: env_or(
+                "OPENPLANTER_GOOGLE_BASE_URL",
+                "https://generativelanguage.googleapis.com/v1beta/openai",
+            ),
+            lmstudio_base_url: env_or(
+                "OPENPLANTER_LMSTUDIO_BASE_URL",
+                "http://localhost:1234/v1",
+            ),
             exa_base_url: env_or("OPENPLANTER_EXA_BASE_URL", "https://api.exa.ai"),
             openai_api_key,
             anthropic_api_key,
             openrouter_api_key,
             cerebras_api_key,
+            google_api_key,
             exa_api_key,
             voyage_api_key,
+            temperature: env::var("OPENPLANTER_TEMPERATURE")
+                .ok()
+                .and_then(|v| v.trim().parse::<f64>().ok()),
             max_depth: env_int("OPENPLANTER_MAX_DEPTH", 4),
             max_steps_per_call: env_int("OPENPLANTER_MAX_STEPS", 100),
             max_observation_chars: env_int("OPENPLANTER_MAX_OBS_CHARS", 6000),

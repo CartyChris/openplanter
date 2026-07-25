@@ -126,6 +126,8 @@ pub struct ConfigView {
     pub max_depth: i64,
     pub max_steps_per_call: i64,
     pub demo: bool,
+    #[serde(default)]
+    pub temperature: Option<f64>,
 }
 
 /// Partial configuration update from the frontend.
@@ -134,6 +136,9 @@ pub struct PartialConfig {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
+    /// Sampling temperature for OpenAI-compatible providers. `-1` clears the override.
+    #[serde(default)]
+    pub temperature: Option<f64>,
 }
 
 /// Model information for the model list.
@@ -142,6 +147,35 @@ pub struct ModelInfo {
     pub id: String,
     pub name: Option<String>,
     pub provider: String,
+}
+
+/// Rich model metadata returned by dynamic model discovery.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelDescriptor {
+    pub id: String,
+    pub name: Option<String>,
+    pub provider: String,
+    /// Maximum context window in tokens, when advertised by the provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_length: Option<u64>,
+    /// Prompt price in USD per 1M tokens, when advertised.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_price: Option<f64>,
+    /// Completion price in USD per 1M tokens, when advertised.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completion_price: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// Result of a provider connection test.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderTestResult {
+    pub ok: bool,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_count: Option<u64>,
+    pub latency_ms: u64,
 }
 
 /// Session information for the session list.
