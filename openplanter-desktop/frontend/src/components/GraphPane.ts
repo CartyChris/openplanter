@@ -19,6 +19,7 @@ import {
 } from "../graph/cytoGraph";
 import { bindInteractions } from "../graph/interaction";
 import { getCategoryColor } from "../graph/colors";
+import { initThreeGraph } from "../graph/threeGraph";
 import MarkdownIt from "markdown-it";
 import hljs from "highlight.js";
 
@@ -92,10 +93,15 @@ export function createGraphPane(): HTMLElement {
 
   const fitBtn = document.createElement("button");
   fitBtn.className = "graph-fit-btn";
-  fitBtn.textContent = "\u229e"; // ⊞
+  fitBtn.textContent = "\u229e";
   fitBtn.title = "Fit to view";
 
-  toolbar.append(searchInput, layoutSelect, tierSelect, sessionToggle, sessionHint, refreshBtn, fitBtn);
+  const modeBtn = document.createElement("button");
+  modeBtn.className = "graph-mode-btn";
+  modeBtn.textContent = "3D";
+  modeBtn.title = "Toggle 3D knowledge graph";
+
+  toolbar.append(searchInput, layoutSelect, tierSelect, sessionToggle, sessionHint, refreshBtn, fitBtn, modeBtn);
 
   // --- Graph container ---
   const graphContainer = document.createElement("div");
@@ -143,6 +149,18 @@ export function createGraphPane(): HTMLElement {
   let baselineNodeIds = new Set<string>();
   let baselineCaptured = false;
   let sessionFilterActive = true;
+  let threeCleanup: (() => void) | null = null;
+  let currentData: GraphData | null = null;
+
+  modeBtn.addEventListener("click", () => {
+    if (!currentData) return;
+    if (threeCleanup) {
+      threeCleanup(); threeCleanup = null; modeBtn.textContent = "3D"; graphContainer.classList.remove("graph-3d-active");
+      initGraph(graphContainer, currentData); layoutSelect.disabled = false;
+    } else {
+      destroyGraph(); threeCleanup = initThreeGraph(graphContainer, currentData); modeBtn.textContent = "2D"; graphContainer.classList.add("graph-3d-active"); layoutSelect.disabled = true;
+    }
+  });
 
   // --- Search handler (200ms debounce) ---
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -421,6 +439,7 @@ export function createGraphPane(): HTMLElement {
   let interactionsBound = false;
 
   function initializeWithData(data: GraphData): void {
+    currentData = data;
     // Remove placeholder if present
     const placeholder = pane.querySelector(".graph-placeholder");
     if (placeholder) placeholder.remove();
