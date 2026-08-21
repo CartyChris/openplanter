@@ -6,6 +6,7 @@ import { appState } from "../state/store";
 import { listSessions, openSession, deleteSession, getCredentialsStatus, getSessionHistory } from "../api/invoke";
 import { isTauri, downloadText } from "../api/web";
 import { openWebSettings } from "./WebSettings";
+import { openWorkspaceTools } from "./WebWorkspace";
 import type { ChatMessage } from "../state/store";
 import type { ReplayEntry } from "../api/types";
 
@@ -23,6 +24,7 @@ export function createApp(root: HTMLElement): void {
   settingsBtn.textContent = "Settings";
   settingsBtn.addEventListener("click", () => openWebSettings());
   toolbar.appendChild(settingsBtn);
+  const workspaceBtn = document.createElement("button"); workspaceBtn.textContent = "Research"; workspaceBtn.addEventListener("click", openWorkspaceTools); toolbar.appendChild(workspaceBtn);
   root.appendChild(toolbar);
 
   // Status bar

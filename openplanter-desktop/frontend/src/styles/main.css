@@ -1027,7 +1027,11 @@ html, body {
 .settings-panel input, .settings-panel select { min-height: 34px; padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-primary); color: var(--text-primary); font: inherit; text-transform: none; letter-spacing: normal; }
 .settings-close { position: absolute; top: 16px; right: 16px; }
 .settings-save { background: var(--accent) !important; color: #fff !important; }
-.settings-status { min-height: 18px; color: var(--success); font-size: 12px; }
+	.settings-status { min-height: 18px; color: var(--success); font-size: 12px; }
+	.workspace-evidence-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow: auto; }
+	.workspace-evidence { padding: 9px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-secondary); font-size: 12px; cursor: pointer; }
+	.workspace-evidence:hover { border-color: var(--accent); color: var(--text-primary); }
+
 @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: var(--statusbar-height) auto 1fr; } .sidebar { display: none; } .chat-pane { grid-column: 1; } .graph-pane { display: none; } .web-toolbar { top: var(--statusbar-height); } }
 
 /* ── Wiki source drawer ── */
