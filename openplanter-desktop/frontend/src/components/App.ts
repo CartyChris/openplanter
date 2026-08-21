@@ -4,10 +4,27 @@ import { createChatPane } from "./ChatPane";
 import { createGraphPane } from "./GraphPane";
 import { appState } from "../state/store";
 import { listSessions, openSession, deleteSession, getCredentialsStatus, getSessionHistory } from "../api/invoke";
+import { isTauri, downloadText } from "../api/web";
+import { openWebSettings } from "./WebSettings";
 import type { ChatMessage } from "../state/store";
 import type { ReplayEntry } from "../api/types";
 
 export function createApp(root: HTMLElement): void {
+  const toolbar = document.createElement("div");
+  toolbar.className = "web-toolbar";
+  const badge = document.createElement("span");
+  badge.textContent = isTauri() ? "DESKTOP" : "WEB MODE · LOCAL DATA";
+  toolbar.appendChild(badge);
+  const exportBtn = document.createElement("button");
+  exportBtn.textContent = "Export workspace";
+  exportBtn.addEventListener("click", () => downloadText("openplanter-workspace.md", appState.get().messages.map((m) => `## ${m.role}\n\n${m.content}`).join("\n\n")));
+  toolbar.appendChild(exportBtn);
+  const settingsBtn = document.createElement("button");
+  settingsBtn.textContent = "Settings";
+  settingsBtn.addEventListener("click", () => openWebSettings());
+  toolbar.appendChild(settingsBtn);
+  root.appendChild(toolbar);
+
   // Status bar
   const statusBar = createStatusBar();
   root.appendChild(statusBar);

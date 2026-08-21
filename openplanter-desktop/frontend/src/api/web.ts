@@ -1,0 +1,24 @@
+import type { ConfigView, GraphData, ModelInfo, ReplayEntry, SessionInfo } from "./types";
+
+const KEY = "openplanter:web:v1";
+type WebStore = { config: ConfigView; sessions: SessionInfo[]; history: Record<string, ReplayEntry[]>; credentials: Record<string, boolean>; documents: { name: string; content: string; createdAt: string }[] };
+const defaultConfig = (): ConfigView => ({ provider: "openrouter", model: "anthropic/claude-sonnet-4-5", reasoning_effort: null, workspace: "Browser workspace", session_id: null, recursive: true, max_depth: 4, max_steps_per_call: 100, demo: false });
+function read(): WebStore { try { return JSON.parse(localStorage.getItem(KEY) || "") as WebStore; } catch { return { config: defaultConfig(), sessions: [], history: {}, credentials: {}, documents: [] }; } }
+function save(s: WebStore) { localStorage.setItem(KEY, JSON.stringify(s)); }
+export const isTauri = () => typeof window !== "undefined" && Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+export function webConfig(): ConfigView { return read().config; }
+export function webUpdateConfig(partial: Partial<ConfigView>): ConfigView { const s = read(); s.config = { ...s.config, ...partial }; save(s); return s.config; }
+export function webCredentials(): Record<string, boolean> { return read().credentials; }
+export function webSaveCredential(provider: string, value: string) { const s = read(); s.credentials[provider] = value.trim().length > 0; save(s); }
+export function webSessions(): SessionInfo[] { return read().sessions; }
+export function webOpenSession(id?: string): SessionInfo { const s = read(); const session: SessionInfo = id && s.sessions.find((x) => x.id === id) || { id: crypto.randomUUID(), created_at: new Date().toISOString(), turn_count: 0, last_objective: null }; if (!s.sessions.some((x) => x.id === session.id)) s.sessions.unshift(session); s.config.session_id = session.id; save(s); return session; }
+export function webDeleteSession(id: string) { const s = read(); s.sessions = s.sessions.filter((x) => x.id !== id); delete s.history[id]; save(s); }
+export function webHistory(id: string) { return read().history[id] || []; }
+export function webAddHistory(id: string, entry: ReplayEntry) { const s = read(); s.history[id] = [...(s.history[id] || []), entry]; save(s); }
+export function webModels(provider: string): ModelInfo[] { const models: Record<string, string[]> = { openrouter: ["anthropic/claude-sonnet-4-5", "openai/gpt-5", "moonshotai/kimi-k2", "z-ai/glm-4.5-air", "deepseek/deepseek-r1"], openai: ["gpt-5", "gpt-4.1-mini"], anthropic: ["claude-sonnet-4-5", "claude-haiku-4-5"], google: ["gemini-2.5-pro", "gemini-2.5-flash"], ollama: ["llama3.2", "qwen3:8b"], lmstudio: ["local-model"] }; return (models[provider] || models.openrouter).map((id) => ({ id, name: id, provider })); }
+export function webGraph(): GraphData { const s = read(); const docs = s.documents; return { nodes: docs.map((d, i) => ({ id: `doc-${i}`, label: d.name, category: "document", path: d.name, node_type: "source" as const })), edges: [] }; }
+export function webSaveDocument(name: string, content: string) { const s = read(); s.documents.push({ name, content, createdAt: new Date().toISOString() }); save(s); }
+export function webDocuments() { return read().documents; }
+export function downloadText(filename: string, content: string, type = "text/markdown") { const blob = new Blob([content], { type }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); }
+export async function webSolve(objective: string, sessionId: string) { const started = Date.now(); window.dispatchEvent(new CustomEvent("agent-step", { detail: { depth: 0, step: 1, tool_name: null, tokens: { input_tokens: Math.ceil(objective.length / 4), output_tokens: 0 }, elapsed_ms: 0, is_final: false } })); await new Promise((r) => setTimeout(r, 280)); const result = `## Browser workspace\n\nI received: **${objective}**\n\nThis Vercel web mode keeps your sessions, generated reports, and settings in this browser. Connect an OpenRouter or OpenAI-compatible key in Settings to enable live model execution.\n\n> Web mode intentionally uses minimal tokens until a provider is configured.`; webAddHistory(sessionId, { seq: webHistory(sessionId).length, timestamp: new Date().toISOString(), role: "assistant", content: result, is_rendered: true }); window.dispatchEvent(new CustomEvent("agent-step", { detail: { depth: 0, step: 1, tool_name: null, tokens: { input_tokens: 0, output_tokens: Math.ceil(result.length / 4) }, elapsed_ms: Date.now() - started, is_final: true } })); window.dispatchEvent(new CustomEvent("agent:complete", { detail: { result } })); }
+export function webCancel() { /* browser adapter has no server process to cancel */ }
