@@ -21,6 +21,9 @@ const SPLASH_ART = [
 ].join("\n");
 
 async function init() {
+  if (!((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__)) {
+    document.documentElement.dataset.theme = localStorage.getItem("openplanter:theme") || "dark";
+  }
   const app = document.getElementById("app")!;
   createApp(app);
 

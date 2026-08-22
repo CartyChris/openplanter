@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd openplanter-desktop/frontend && npm run build",
+  "outputDirectory": "openplanter-desktop/frontend/dist",
+  "installCommand": "cd openplanter-desktop/frontend && npm install",
+  "framework": null
+}

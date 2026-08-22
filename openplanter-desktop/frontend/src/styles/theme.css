@@ -36,3 +36,30 @@
   --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", Menlo, monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 }
+
+html[data-theme="light"] {
+  --bg-primary: #f6f8fa;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #eef1f4;
+  --bg-card: #e6ebf0;
+  --border: #c9d1d9;
+  --text-primary: #1f2328;
+  --text-secondary: #59636e;
+  --text-muted: #8c959f;
+  --accent: #0969da;
+  --accent-hover: #0550ae;
+}
+
+html[data-theme="high-contrast"] {
+  --bg-primary: #000000;
+  --bg-secondary: #080808;
+  --bg-tertiary: #171717;
+  --border: #ffffff;
+  --text-primary: #ffffff;
+  --text-secondary: #f0f0f0;
+  --text-muted: #c0c0c0;
+  --accent: #00e5ff;
+  --accent-hover: #7df3ff;
+}
+
+

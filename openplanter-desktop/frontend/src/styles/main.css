@@ -1017,6 +1017,45 @@ html, body {
   background: var(--text-muted);
 }
 
+.web-toolbar { position: fixed; top: 0; right: 0; z-index: 50; display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: var(--text-muted); font-size: 10px; background: color-mix(in srgb, var(--bg-secondary) 92%, transparent); border-bottom-left-radius: var(--radius); }
+.web-toolbar button, .settings-panel button { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-tertiary); color: var(--text-primary); padding: 5px 9px; cursor: pointer; font: inherit; }
+  .web-toolbar button:hover, .settings-panel button:hover { border-color: var(--accent); color: var(--accent); }
+  .toolbar-menu { position: absolute; top: calc(100% + 6px); right: 8px; display: flex; flex-direction: column; gap: 4px; min-width: 190px; padding: 6px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .toolbar-menu button { text-align: left; white-space: nowrap; }
+  .danger-button { color: var(--error) !important; }
+  @media (max-width: 800px) {
+    html, body { overflow: auto; min-height: 100%; }
+    #app { min-height: 100dvh; height: auto; grid-template-columns: 1fr; grid-template-rows: var(--statusbar-height) auto minmax(58dvh, 1fr); gap: 1px; }
+    .sidebar { grid-column: 1; grid-row: 2; max-height: 28dvh; overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; padding: 10px; }
+    .sidebar > * { min-width: 0; }
+    .chat-pane { grid-column: 1; grid-row: 3; min-height: 62dvh; }
+    .status-bar { gap: 8px; padding: 0 8px; overflow-x: auto; white-space: nowrap; }
+    .status-bar .tokens { margin-left: 0; }
+    .chat-messages { padding: 10px; }
+    .splash { overflow-x: auto; font-size: 9px; }
+    .input-bar { padding: 8px; }
+    .input-bar textarea { font-size: 16px; }
+    .web-toolbar { left: 0; right: 0; justify-content: flex-end; border-radius: 0; padding-right: 8px; }
+  }
+  @media (max-width: 420px) {
+    .sidebar { grid-template-columns: 1fr; max-height: 34dvh; }
+    .chat-pane { min-height: 58dvh; }
+    .web-toolbar { position: sticky; }
+  }
+.settings-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.62); }
+.settings-panel { position: relative; display: flex; flex-direction: column; gap: 12px; width: min(440px, 100%); max-height: 90vh; overflow: auto; padding: 22px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 16px 60px rgba(0,0,0,.45); }
+.settings-panel h2 { color: var(--accent); font-size: 18px; }
+.settings-panel label { display: flex; flex-direction: column; gap: 5px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.settings-panel input, .settings-panel select { min-height: 34px; padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-primary); color: var(--text-primary); font: inherit; text-transform: none; letter-spacing: normal; }
+.settings-close { position: absolute; top: 16px; right: 16px; }
+.settings-save { background: var(--accent) !important; color: #fff !important; }
+	.settings-status { min-height: 18px; color: var(--success); font-size: 12px; }
+	.workspace-evidence-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow: auto; }
+	.workspace-evidence { padding: 9px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-secondary); font-size: 12px; cursor: pointer; }
+	.workspace-evidence:hover { border-color: var(--accent); color: var(--text-primary); }
+
+@media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: var(--statusbar-height) auto 1fr; } .sidebar { display: none; } .chat-pane { grid-column: 1; } .graph-pane { display: none; } .web-toolbar { top: var(--statusbar-height); } }
+
 /* ── Wiki source drawer ── */
 
 .graph-source-drawer-backdrop {
