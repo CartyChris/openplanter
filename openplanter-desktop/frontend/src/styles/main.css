@@ -94,7 +94,7 @@ html, body {
 }
 
 .sidebar .session-delete {
-  display: none;
+  display: inline;
   flex-shrink: 0;
   margin-left: 4px;
   padding: 0 4px;
