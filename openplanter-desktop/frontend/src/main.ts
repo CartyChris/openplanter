@@ -10,6 +10,7 @@ import {
   onCuratorUpdate,
 } from "./api/events";
 import { appState } from "./state/store";
+import { isTauri } from "./api/web";
 
 const SPLASH_ART = [
   " .oOo.      ___                   ____  _             _                .oOo. ",
@@ -98,10 +99,10 @@ async function init() {
       currentDepth: event.depth,
     }));
 
-    // Dispatch to ChatPane for rich step summary rendering
-    window.dispatchEvent(
-      new CustomEvent("agent-step", { detail: event })
-    );
+    // Tauri events need forwarding; browser events already reach ChatPane directly.
+    if (isTauri()) {
+      window.dispatchEvent(new CustomEvent("agent-step", { detail: event }));
+    }
   });
 
   await onAgentDelta((event) => {
