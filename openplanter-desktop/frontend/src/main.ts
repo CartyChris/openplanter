@@ -23,9 +23,9 @@ const SPLASH_ART = [
 ].join("\n");
 
 /**
- * The browser producer historically emitted `agent-step`, which ChatPane also
- * treats as a permanent transcript step. Convert that event at capture time to
- * the browser-only mutable `agent-status` channel before UI listeners run.
+ * Browser webSolve historically emits `agent-step`, while ChatPane treats that
+ * event as a permanent transcript step. Convert it at capture time to the
+ * browser-only mutable `agent-status` channel before UI listeners run.
  */
 function installBrowserRunStatusBridge() {
   if (isTauri()) return;
@@ -112,9 +112,13 @@ async function init() {
   });
 
   await onAgentStep((event) => {
+    const browserFinal = !isTauri() && event.is_final;
     appState.update((current) => ({
       ...current,
-      inputTokens: current.inputTokens + event.tokens.input_tokens,
+      // Browser webSolve reports the same input estimate at start and final.
+      // Count it once while still allowing Tauri to aggregate real step usage.
+      inputTokens:
+        current.inputTokens + (browserFinal ? 0 : event.tokens.input_tokens),
       outputTokens: current.outputTokens + event.tokens.output_tokens,
       currentStep: event.step,
       currentDepth: event.depth,
