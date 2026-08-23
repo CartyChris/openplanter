@@ -22,8 +22,32 @@ const SPLASH_ART = [
   " \\___/          |_|                                                    \\___/ ",
 ].join("\n");
 
+/**
+ * The browser producer historically emitted `agent-step`, which ChatPane also
+ * treats as a permanent transcript step. Convert that event at capture time to
+ * the browser-only mutable `agent-status` channel before UI listeners run.
+ */
+function installBrowserRunStatusBridge() {
+  if (isTauri()) return;
+  window.addEventListener(
+    "agent-step",
+    (event) => {
+      event.stopImmediatePropagation();
+      window.dispatchEvent(
+        new CustomEvent("agent-status", {
+          detail: (event as CustomEvent).detail,
+        })
+      );
+    },
+    { capture: true }
+  );
+}
+
 async function init() {
-  if (!isTauri()) applyWebAppearance(getWebPreferences());
+  if (!isTauri()) {
+    applyWebAppearance(getWebPreferences());
+    installBrowserRunStatusBridge();
+  }
 
   const app = document.getElementById("app")!;
   createApp(app);
@@ -96,15 +120,12 @@ async function init() {
       currentDepth: event.depth,
     }));
 
-    // Browser webSolve already dispatched this exact DOM event. Re-dispatching
-    // it here creates a feedback loop. Only native Tauri events need bridging.
     if (isTauri()) {
       window.dispatchEvent(new CustomEvent("agent-step", { detail: event }));
     }
   });
 
   await onAgentDelta((event) => {
-    // Same ownership rule as agent-step: browser events are already DOM events.
     if (isTauri()) {
       window.dispatchEvent(new CustomEvent("agent-delta", { detail: event }));
     }
