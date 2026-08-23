@@ -7,14 +7,10 @@
 
 const GLOBAL_KEY = "__tauri_mock_handlers__";
 
-type TauriTestWindow = {
-  __TAURI_INTERNALS__?: Record<string, never>;
-};
-
 export function __markTauriRuntime(): void {
-  const g = globalThis as typeof globalThis & { window?: TauriTestWindow };
-  if (!g.window) g.window = {};
-  g.window.__TAURI_INTERNALS__ = {};
+  const runtime = globalThis as any;
+  if (!runtime.window) runtime.window = {};
+  runtime.window.__TAURI_INTERNALS__ = {};
 }
 
 __markTauriRuntime();
@@ -31,8 +27,8 @@ export function invoke(cmd: string, args?: any): Promise<any> {
   if (handlers[cmd]) {
     try {
       return Promise.resolve(handlers[cmd](args));
-    } catch (e) {
-      return Promise.reject(e);
+    } catch (error) {
+      return Promise.reject(error);
     }
   }
   return Promise.reject(new Error(`No mock for command: ${cmd}`));
@@ -44,5 +40,5 @@ export function __setHandler(cmd: string, fn: Function): void {
 
 export function __clearHandlers(): void {
   const handlers = getHandlers();
-  for (const k in handlers) delete handlers[k];
+  for (const key in handlers) delete handlers[key];
 }
