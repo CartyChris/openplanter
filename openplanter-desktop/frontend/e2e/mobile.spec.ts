@@ -27,6 +27,11 @@ for (const viewport of viewports) {
         document.body.scrollWidth > window.innerWidth + 1
       );
       expect(hasHorizontalPageOverflow).toBe(false);
+
+      const dockHeights = await page.locator(".mobile-dock button").evaluateAll((buttons) =>
+        buttons.map((button) => Math.round(button.getBoundingClientRect().height))
+      );
+      expect(dockHeights.every((height) => height >= 44)).toBe(true);
     });
 
     test("opens Threads and exposes New Session in portrait", async ({ page }) => {
