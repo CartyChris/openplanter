@@ -2,9 +2,23 @@
 import { createStatusBar } from "./StatusBar";
 import { createChatPane } from "./ChatPane";
 import { createGraphPane } from "./GraphPane";
+import { createMobileDock } from "./MobileDock";
 import { appState } from "../state/store";
-import { listSessions, openSession, deleteSession, getCredentialsStatus, getSessionHistory } from "../api/invoke";
-import { isTauri, downloadText, exportWorkspace, importWorkspace, importFolder, exportFindings, wipeWorkspace } from "../api/web";
+import {
+  listSessions,
+  openSession,
+  deleteSession,
+  getCredentialsStatus,
+  getSessionHistory,
+} from "../api/invoke";
+import {
+  isTauri,
+  downloadText,
+  importWorkspace,
+  importFolder,
+  exportFindings,
+  wipeWorkspace,
+} from "../api/web";
 import { openWebSettings } from "./WebSettings";
 import { openWorkspaceTools } from "./WebWorkspace";
 import { openWebDashboard } from "./WebDashboard";
@@ -12,48 +26,10 @@ import type { ChatMessage } from "../state/store";
 import type { ReplayEntry } from "../api/types";
 
 export function createApp(root: HTMLElement): void {
-  const toolbar = document.createElement("div");
-  toolbar.className = "web-toolbar";
-  const badge = document.createElement("span");
-  badge.textContent = isTauri() ? "DESKTOP" : "WEB MODE · LOCAL DATA";
-  toolbar.appendChild(badge);
-  const exportBtn = document.createElement("button");
-  exportBtn.textContent = "Export workspace";
-  exportBtn.addEventListener("click", () => downloadText("openplanter-workspace.md", appState.get().messages.map((m) => `## ${m.role}\n\n${m.content}`).join("\n\n")));
-  toolbar.appendChild(exportBtn);
-  const backupBtn = document.createElement("button");
-  backupBtn.textContent = "Backup";
-  backupBtn.title = "Export or import all browser data";
-  backupBtn.addEventListener("click", () => {
-    const menu = document.createElement("div");
-    menu.className = "toolbar-menu";
-    const importBtn = document.createElement("button"); importBtn.textContent = "Import backup";
-    const folderBtn = document.createElement("button"); folderBtn.textContent = "Import findings folder";
-    const findingsBtn = document.createElement("button"); findingsBtn.textContent = "Export findings";
-    const wipeBtn = document.createElement("button"); wipeBtn.textContent = "Wipe all browser data"; wipeBtn.className = "danger-button";
-    const picker = document.createElement("input"); picker.type = "file"; picker.accept = "application/json"; picker.hidden = true;
-    const folderPicker = document.createElement("input"); folderPicker.type = "file"; folderPicker.multiple = true; folderPicker.setAttribute("webkitdirectory", ""); folderPicker.hidden = true;
-    importBtn.onclick = () => picker.click(); folderBtn.onclick = () => folderPicker.click(); findingsBtn.onclick = () => exportFindings();
-    picker.onchange = () => picker.files?.[0] && importWorkspace(picker.files[0]).catch(() => alert("That backup file is not valid."));
-    folderPicker.onchange = () => folderPicker.files && importFolder(folderPicker.files);
-    wipeBtn.onclick = () => { if (confirm("Wipe all sessions, reports, notes, settings, and credentials from this browser?")) wipeWorkspace(); };
-    menu.append(importBtn, folderBtn, findingsBtn, wipeBtn, picker, folderPicker); toolbar.appendChild(menu);
-    setTimeout(() => { const close = (event: MouseEvent) => { if (!menu.contains(event.target as Node) && event.target !== backupBtn) { menu.remove(); document.removeEventListener("click", close); } }; document.addEventListener("click", close); }, 0);
-  });
-  toolbar.appendChild(backupBtn);
-  const settingsBtn = document.createElement("button");
-  settingsBtn.textContent = "Settings";
-  settingsBtn.addEventListener("click", () => openWebSettings());
-  toolbar.appendChild(settingsBtn);
-  const workspaceBtn = document.createElement("button"); workspaceBtn.textContent = "Research"; workspaceBtn.addEventListener("click", openWorkspaceTools); toolbar.appendChild(workspaceBtn);
-  const dashboardBtn = document.createElement("button"); dashboardBtn.textContent = "Dashboard"; dashboardBtn.addEventListener("click", openWebDashboard); toolbar.appendChild(dashboardBtn);
+  const toolbar = createToolbar();
   root.appendChild(toolbar);
+  root.appendChild(createStatusBar());
 
-  // Status bar
-  const statusBar = createStatusBar();
-  root.appendChild(statusBar);
-
-  // Sidebar
   const sidebar = document.createElement("div");
   sidebar.className = "sidebar";
 
@@ -61,18 +37,17 @@ export function createApp(root: HTMLElement): void {
   sessionsHeader.textContent = "Sessions";
   sidebar.appendChild(sessionsHeader);
 
-  // New session button
   const newSessionBtn = document.createElement("div");
   newSessionBtn.className = "session-item";
   newSessionBtn.style.color = "var(--accent)";
   newSessionBtn.style.fontWeight = "600";
   newSessionBtn.textContent = "+ New Session";
-  newSessionBtn.addEventListener("click", () => switchToNewSession(sessionList));
   sidebar.appendChild(newSessionBtn);
 
   const sessionList = document.createElement("div");
   sessionList.className = "session-list";
   sidebar.appendChild(sessionList);
+  newSessionBtn.addEventListener("click", () => void switchToNewSession(sessionList));
 
   const settingsHeader = document.createElement("h3");
   settingsHeader.style.marginTop = "16px";
@@ -91,48 +66,134 @@ export function createApp(root: HTMLElement): void {
   const credsDisplay = document.createElement("div");
   credsDisplay.className = "cred-status";
   sidebar.appendChild(credsDisplay);
-
   root.appendChild(sidebar);
 
-  // Chat pane
-  const chatPane = createChatPane();
-  root.appendChild(chatPane);
+  root.appendChild(createChatPane());
+  root.appendChild(createGraphPane());
 
-  // Graph pane
-  const graphPane = createGraphPane();
-  root.appendChild(graphPane);
+  const mobileDock = createMobileDock({
+    newSession: () => switchToNewSession(sessionList),
+    renderThreads: (container) => loadSessions(container),
+    openResearch: openWorkspaceTools,
+    openSettings: openWebSettings,
+    openDashboard: openWebDashboard,
+  });
+  root.appendChild(mobileDock);
 
-  // Reactive settings display
   function renderSettings() {
-    const s = appState.get();
+    const state = appState.get();
     settingsDisplay.innerHTML = [
-      `<div><span class="label">provider:</span> <span class="value">${s.provider || "auto"}</span></div>`,
-      `<div><span class="label">model:</span> <span class="value">${s.model || "\u2014"}</span></div>`,
-      `<div><span class="label">reasoning:</span> <span class="value">${s.reasoningEffort ?? "off"}</span></div>`,
-      `<div><span class="label">mode:</span> <span class="value">${s.recursive ? "recursive" : "flat"}</span></div>`,
+      `<div><span class="label">provider:</span> <span class="value">${state.provider || "auto"}</span></div>`,
+      `<div><span class="label">model:</span> <span class="value">${state.model || "—"}</span></div>`,
+      `<div><span class="label">reasoning:</span> <span class="value">${state.reasoningEffort ?? "off"}</span></div>`,
+      `<div><span class="label">mode:</span> <span class="value">${state.recursive ? "recursive" : "flat"}</span></div>`,
     ].join("");
   }
   appState.subscribe(renderSettings);
   renderSettings();
 
-  // Load sessions
-  loadSessions(sessionList);
-
-  // Reload session list when session changes
-  appState.subscribe(() => {
-    highlightActiveSession(sessionList);
-  });
-
-  // Load credentials status
-  loadCredentials(credsDisplay);
+  void loadSessions(sessionList);
+  appState.subscribe(() => highlightActiveSession(sessionList));
+  void loadCredentials(credsDisplay);
 }
 
-/** Switch to a new session, clearing chat state. */
+function createToolbar(): HTMLElement {
+  const toolbar = document.createElement("div");
+  toolbar.className = "web-toolbar";
+
+  const badge = document.createElement("span");
+  badge.textContent = isTauri() ? "DESKTOP" : "WEB MODE · LOCAL DATA";
+  toolbar.appendChild(badge);
+
+  const exportBtn = document.createElement("button");
+  exportBtn.textContent = "Export workspace";
+  exportBtn.addEventListener("click", () =>
+    downloadText(
+      "openplanter-workspace.md",
+      appState.get().messages.map((message) => `## ${message.role}\n\n${message.content}`).join("\n\n")
+    )
+  );
+  toolbar.appendChild(exportBtn);
+
+  const backupBtn = document.createElement("button");
+  backupBtn.textContent = "Backup";
+  backupBtn.title = "Export or import all browser data";
+  backupBtn.addEventListener("click", () => openBackupMenu(toolbar, backupBtn));
+  toolbar.appendChild(backupBtn);
+
+  const settingsBtn = document.createElement("button");
+  settingsBtn.textContent = "Settings";
+  settingsBtn.addEventListener("click", openWebSettings);
+  toolbar.appendChild(settingsBtn);
+
+  const researchBtn = document.createElement("button");
+  researchBtn.textContent = "Research";
+  researchBtn.addEventListener("click", openWorkspaceTools);
+  toolbar.appendChild(researchBtn);
+
+  const dashboardBtn = document.createElement("button");
+  dashboardBtn.textContent = "Dashboard";
+  dashboardBtn.addEventListener("click", openWebDashboard);
+  toolbar.appendChild(dashboardBtn);
+  return toolbar;
+}
+
+function openBackupMenu(toolbar: HTMLElement, backupBtn: HTMLButtonElement) {
+  toolbar.querySelector(".toolbar-menu")?.remove();
+  const menu = document.createElement("div");
+  menu.className = "toolbar-menu";
+
+  const importBtn = document.createElement("button");
+  importBtn.textContent = "Import backup";
+  const folderBtn = document.createElement("button");
+  folderBtn.textContent = "Import findings folder";
+  const findingsBtn = document.createElement("button");
+  findingsBtn.textContent = "Export findings";
+  const wipeBtn = document.createElement("button");
+  wipeBtn.textContent = "Wipe all browser data";
+  wipeBtn.className = "danger-button";
+
+  const picker = document.createElement("input");
+  picker.type = "file";
+  picker.accept = "application/json";
+  picker.hidden = true;
+  const folderPicker = document.createElement("input");
+  folderPicker.type = "file";
+  folderPicker.multiple = true;
+  folderPicker.setAttribute("webkitdirectory", "");
+  folderPicker.hidden = true;
+
+  importBtn.onclick = () => picker.click();
+  folderBtn.onclick = () => folderPicker.click();
+  findingsBtn.onclick = () => exportFindings();
+  picker.onchange = () =>
+    picker.files?.[0] &&
+    importWorkspace(picker.files[0]).catch(() => alert("That backup file is not valid."));
+  folderPicker.onchange = () => folderPicker.files && importFolder(folderPicker.files);
+  wipeBtn.onclick = () => {
+    if (confirm("Wipe all sessions, reports, notes, settings, and credentials from this browser?")) {
+      wipeWorkspace();
+    }
+  };
+
+  menu.append(importBtn, folderBtn, findingsBtn, wipeBtn, picker, folderPicker);
+  toolbar.appendChild(menu);
+  setTimeout(() => {
+    const close = (event: MouseEvent) => {
+      if (!menu.contains(event.target as Node) && event.target !== backupBtn) {
+        menu.remove();
+        document.removeEventListener("click", close);
+      }
+    };
+    document.addEventListener("click", close);
+  }, 0);
+}
+
 async function switchToNewSession(sessionList: HTMLElement): Promise<void> {
   try {
     const session = await openSession();
-    appState.update((s) => ({
-      ...s,
+    appState.update((state) => ({
+      ...state,
       sessionId: session.id,
       messages: [],
       inputTokens: 0,
@@ -141,11 +202,9 @@ async function switchToNewSession(sessionList: HTMLElement): Promise<void> {
       currentDepth: 0,
       inputQueue: [],
     }));
-    // Dispatch event to clear ChatPane DOM
     window.dispatchEvent(new CustomEvent("session-changed", { detail: { isNew: true } }));
-    // Add welcome message
-    appState.update((s) => ({
-      ...s,
+    appState.update((state) => ({
+      ...state,
       messages: [
         {
           id: crypto.randomUUID(),
@@ -155,14 +214,12 @@ async function switchToNewSession(sessionList: HTMLElement): Promise<void> {
         },
       ],
     }));
-    // Reload session list
-    loadSessions(sessionList);
-  } catch (e) {
-    console.error("Failed to create new session:", e);
+    await loadSessions(sessionList);
+  } catch (error) {
+    console.error("Failed to create new session:", error);
   }
 }
 
-/** Convert a ReplayEntry to a ChatMessage for display. */
 function replayEntryToMessage(entry: ReplayEntry): ChatMessage {
   return {
     id: crypto.randomUUID(),
@@ -170,26 +227,25 @@ function replayEntryToMessage(entry: ReplayEntry): ChatMessage {
     content: entry.content,
     toolName: entry.tool_name ?? undefined,
     timestamp: new Date(entry.timestamp).getTime() || Date.now(),
-    isRendered: entry.is_rendered ?? (entry.role === "assistant"),
+    isRendered: entry.is_rendered ?? entry.role === "assistant",
     stepNumber: entry.step_number ?? undefined,
     stepTokensIn: entry.step_tokens_in ?? undefined,
     stepTokensOut: entry.step_tokens_out ?? undefined,
     stepElapsed: entry.step_elapsed ?? undefined,
     stepModelPreview: entry.step_model_preview ?? undefined,
-    stepToolCalls: entry.step_tool_calls?.map((tc) => ({
-      name: tc.name,
-      keyArg: tc.key_arg,
-      elapsed: tc.elapsed,
+    stepToolCalls: entry.step_tool_calls?.map((call) => ({
+      name: call.name,
+      keyArg: call.key_arg,
+      elapsed: call.elapsed,
     })),
   };
 }
 
-/** Switch to an existing session, loading message history. */
 async function switchToSession(sessionId: string, sessionList: HTMLElement): Promise<void> {
   try {
     const resumed = await openSession(sessionId, true);
-    appState.update((s) => ({
-      ...s,
+    appState.update((state) => ({
+      ...state,
       sessionId: resumed.id,
       messages: [],
       inputTokens: 0,
@@ -198,24 +254,21 @@ async function switchToSession(sessionId: string, sessionList: HTMLElement): Pro
       currentDepth: 0,
       inputQueue: [],
     }));
-    // Dispatch event to clear ChatPane DOM
     window.dispatchEvent(new CustomEvent("session-changed", { detail: { isNew: false } }));
 
-    // Load message history from replay.jsonl
     let messages: ChatMessage[] = [];
     try {
       const history = await getSessionHistory(resumed.id);
       messages = history.map(replayEntryToMessage);
-    } catch (e) {
-      console.error("Failed to load session history:", e);
+    } catch (error) {
+      console.error("Failed to load session history:", error);
     }
 
-    // Add info message, then history
     const info = resumed.last_objective
-      ? `Resumed session ${resumed.id.slice(0, 8)} \u2014 ${resumed.last_objective}`
+      ? `Resumed session ${resumed.id.slice(0, 8)} — ${resumed.last_objective}`
       : `Resumed session ${resumed.id.slice(0, 8)}`;
-    appState.update((s) => ({
-      ...s,
+    appState.update((state) => ({
+      ...state,
       messages: [
         {
           id: crypto.randomUUID(),
@@ -227,21 +280,21 @@ async function switchToSession(sessionId: string, sessionList: HTMLElement): Pro
       ],
     }));
     highlightActiveSession(sessionList);
-  } catch (e) {
-    console.error("Failed to resume session:", e);
+  } catch (error) {
+    console.error("Failed to resume session:", error);
   }
 }
 
 function highlightActiveSession(container: HTMLElement): void {
   const currentId = appState.get().sessionId;
   for (const item of container.querySelectorAll(".session-item")) {
-    const el = item as HTMLElement;
-    if (el.title === currentId) {
-      el.style.background = "var(--bg-tertiary)";
-      el.style.color = "var(--accent)";
+    const element = item as HTMLElement;
+    if (element.title === currentId) {
+      element.style.background = "var(--bg-tertiary)";
+      element.style.color = "var(--accent)";
     } else {
-      el.style.background = "";
-      el.style.color = "";
+      element.style.background = "";
+      element.style.color = "";
     }
   }
 }
@@ -258,6 +311,7 @@ async function loadSessions(container: HTMLElement): Promise<void> {
       container.appendChild(empty);
       return;
     }
+
     for (const session of sessions) {
       const item = document.createElement("div");
       item.className = "session-item";
@@ -279,37 +333,34 @@ async function loadSessions(container: HTMLElement): Promise<void> {
         minute: "2-digit",
       });
       label.textContent = session.last_objective
-        ? `${dateStr} \u2014 ${session.last_objective}`
+        ? `${dateStr} — ${session.last_objective}`
         : dateStr;
-
-      label.addEventListener("click", () => switchToSession(session.id, container));
+      label.addEventListener("click", () => void switchToSession(session.id, container));
 
       const deleteBtn = document.createElement("span");
       deleteBtn.className = "session-delete";
-      deleteBtn.textContent = "\u00d7";
+      deleteBtn.textContent = "×";
       deleteBtn.title = "Delete session";
       let confirmPending = false;
       let confirmTimer: ReturnType<typeof setTimeout> | null = null;
-      function resetDeleteBtn() {
+      const resetDeleteBtn = () => {
         confirmPending = false;
-        deleteBtn.textContent = "\u00d7";
+        deleteBtn.textContent = "×";
         deleteBtn.style.color = "";
         deleteBtn.style.fontWeight = "";
         deleteBtn.style.display = "";
-      }
-      deleteBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
+      };
+      deleteBtn.addEventListener("click", async (event) => {
+        event.stopPropagation();
         if (!confirmPending) {
-          // First click: enter confirmation state
           confirmPending = true;
           deleteBtn.textContent = "Delete?";
           deleteBtn.style.color = "var(--error)";
           deleteBtn.style.fontWeight = "600";
-          deleteBtn.style.display = "inline"; // override CSS display:none
+          deleteBtn.style.display = "inline";
           confirmTimer = setTimeout(resetDeleteBtn, 3000);
           return;
         }
-        // Second click: actually delete
         if (confirmTimer) clearTimeout(confirmTimer);
         confirmPending = false;
         deleteBtn.textContent = "...";
@@ -320,20 +371,19 @@ async function loadSessions(container: HTMLElement): Promise<void> {
           } else {
             await loadSessions(container);
           }
-        } catch (err) {
+        } catch (error) {
           deleteBtn.textContent = "Error!";
-          console.error("Failed to delete session:", err);
+          console.error("Failed to delete session:", error);
           setTimeout(resetDeleteBtn, 2000);
         }
       });
 
-      item.appendChild(label);
-      item.appendChild(deleteBtn);
+      item.append(label, deleteBtn);
       container.appendChild(item);
     }
     highlightActiveSession(container);
-  } catch (e) {
-    console.error("Failed to load sessions:", e);
+  } catch (error) {
+    console.error("Failed to load sessions:", error);
   }
 }
 
@@ -341,15 +391,25 @@ async function loadCredentials(container: HTMLElement): Promise<void> {
   try {
     const status = await getCredentialsStatus();
     container.innerHTML = "";
-    const providers = ["openai", "anthropic", "openrouter", "google", "cerebras", "ollama", "lmstudio", "exa", "firecrawl"];
-    for (const p of providers) {
+    const providers = [
+      "openai",
+      "anthropic",
+      "openrouter",
+      "google",
+      "cerebras",
+      "ollama",
+      "lmstudio",
+      "exa",
+      "firecrawl",
+    ];
+    for (const provider of providers) {
       const row = document.createElement("div");
-      const hasKey = status[p] ?? false;
+      const hasKey = status[provider] ?? false;
       row.className = hasKey ? "cred-ok" : "cred-missing";
-      row.textContent = `${hasKey ? "\u2713" : "\u2717"} ${p}`;
+      row.textContent = `${hasKey ? "✓" : "✗"} ${provider}`;
       container.appendChild(row);
     }
-  } catch (e) {
-    console.error("Failed to load credentials:", e);
+  } catch (error) {
+    console.error("Failed to load credentials:", error);
   }
 }
