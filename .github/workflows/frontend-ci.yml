@@ -31,3 +31,7 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Install mobile browser engines
+        run: npx playwright install --with-deps chromium webkit
+      - name: Portrait mobile smoke tests
+        run: npx playwright test e2e/mobile.spec.ts --config e2e/playwright.config.ts
