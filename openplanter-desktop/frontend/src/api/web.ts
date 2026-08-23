@@ -3,7 +3,16 @@ import type { ConfigView, GraphData, ModelInfo, ReplayEntry, SessionInfo } from 
 const KEY = "openplanter:web:v2";
 type DocumentRecord = { name: string; content: string; createdAt: string };
 type WebStore = { config: ConfigView; sessions: SessionInfo[]; history: Record<string, ReplayEntry[]>; credentials: Record<string, string>; documents: DocumentRecord[] };
-const defaults = (): WebStore => ({ config: { provider: "openrouter", model: "anthropic/claude-sonnet-4-5", reasoning_effort: null, workspace: "Browser workspace", session_id: null, recursive: true, max_depth: 4, max_steps_per_call: 100, demo: false }, sessions: [], history: {}, credentials: {}, documents: [] });
+type ChatMessage = { role: string; content: string };
+type ProviderErrorEnvelope = {
+  error?: {
+    message?: string;
+    metadata?: { missing_attestation_types?: string[] };
+  };
+  message?: string;
+};
+
+const defaults = (): WebStore => ({ config: { provider: "openrouter", model: "anthropic/claude-sonnet-4.5", reasoning_effort: null, workspace: "Browser workspace", session_id: null, recursive: true, max_depth: 4, max_steps_per_call: 100, demo: false }, sessions: [], history: {}, credentials: {}, documents: [] });
 function read(): WebStore { try { const raw = localStorage.getItem(KEY); if (raw) return { ...defaults(), ...JSON.parse(raw) }; const old = localStorage.getItem("openplanter:web:v1"); return old ? { ...defaults(), ...JSON.parse(old), credentials: {} } : defaults(); } catch { return defaults(); } }
 function save(s: WebStore) { localStorage.setItem(KEY, JSON.stringify(s)); }
 export const isTauri = () => typeof window !== "undefined" && Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
@@ -30,8 +39,101 @@ export async function importWorkspace(file: File) { const incoming = JSON.parse(
 export function wipeWorkspace() { localStorage.removeItem(KEY); localStorage.removeItem("openplanter:web:v1"); localStorage.removeItem("openplanter:evidence"); localStorage.removeItem("openplanter:favorites"); localStorage.removeItem("openplanter:profile"); localStorage.removeItem("openplanter:spend-limit"); location.reload(); }
 export async function importFolder(files: FileList | File[]) { for (const file of Array.from(files)) { if (file.size <= 2_000_000) webSaveDocument(file.webkitRelativePath || file.name, await file.text()); } }
 export function exportFindings() { const s = read(); const notes = JSON.parse(localStorage.getItem("openplanter:evidence") || "[]"); const body = `# OpenPlanter Findings\n\n## Documents\n${s.documents.map((d) => `### ${d.name}\n\n${d.content}`).join("\n\n")}\n\n## Evidence\n${notes.map((n: { text: string; contradiction: boolean }) => `- ${n.contradiction ? "[CONTRADICTION] " : ""}${n.text}`).join("\n")}`; downloadText("openplanter-findings.md", body); }
-const endpoints: Record<string, string> = { openrouter: "https://openrouter.ai/api/v1", openai: "https://api.openai.com/v1", google: "https://generativelanguage.googleapis.com/v1beta/openai", ollama: "http://localhost:11434/v1", lmstudio: "http://localhost:1234/v1" };
-export async function webSolve(objective: string, sessionId: string, signal?: AbortSignal) { const s = read(); const key = s.credentials[s.config.provider]; if (!key) throw new Error(`Add a ${s.config.provider} API key in Settings first.`); const started = Date.now(); const inputTokens = Math.max(1, Math.ceil(objective.length / 4)); window.dispatchEvent(new CustomEvent("agent-step", { detail: { depth: 0, step: 1, tool_name: null, tokens: { input_tokens: inputTokens, output_tokens: 0 }, elapsed_ms: 0, is_final: false } })); const messages = (s.history[sessionId] || []).filter((x) => x.role === "user" || x.role === "assistant").slice(-20).map((x) => ({ role: x.role, content: x.content })); const research = await webResearch(objective).catch(() => ""); const prompt = research ? `${objective}\n\nUse these web sources when relevant. Cite URLs and distinguish retrieved facts from your own reasoning:\n${research}` : objective; messages.push({ role: "user", content: prompt }); const response = await fetch(`${endpoints[s.config.provider] || endpoints.openrouter}/chat/completions`, { method: "POST", signal, headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...(s.config.provider === "openrouter" ? { "HTTP-Referer": location.origin, "X-Title": "OpenPlanter" } : {}) }, body: JSON.stringify({ model: s.config.model, messages, stream: true, temperature: 0.2 }) }); if (!response.ok) throw new Error(`${response.status}: ${(await response.text()).slice(0, 300)}`); if (!response.body) throw new Error("Provider returned no response stream."); const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; let result = ""; const emit = (text: string) => { result += text; window.dispatchEvent(new CustomEvent("agent-chunk", { detail: { text, result } })); }; while (true) { const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split("\n"); buffer = lines.pop() || ""; for (const line of lines) { if (!line.startsWith("data:")) continue; const data = line.slice(5).trim(); if (data === "[DONE]") continue; try { const delta = JSON.parse(data).choices?.[0]?.delta?.content; if (delta) emit(delta); } catch { /* ignore incomplete SSE frames */ } } } if (!result.trim()) throw new Error("The model returned an empty response."); webAddHistory(sessionId, { seq: webHistory(sessionId).length, timestamp: new Date().toISOString(), role: "assistant", content: result, is_rendered: true }); window.dispatchEvent(new CustomEvent("agent-step", { detail: { depth: 0, step: 1, tool_name: null, tokens: { input_tokens: inputTokens, output_tokens: Math.max(1, Math.ceil(result.length / 4)) }, elapsed_ms: Date.now() - started, is_final: true } })); window.dispatchEvent(new CustomEvent("agent:complete", { detail: { result } })); }
+
+const endpoints: Record<string, string> = { openrouter: "https://openrouter.ai/api/v1", openai: "https://api.openai.com/v1", google: "https://generativelanguage.googleapis.com/v1beta/openai", cerebras: "https://api.cerebras.ai/v1", ollama: "http://localhost:11434/v1", lmstudio: "http://localhost:1234/v1" };
+
+export function buildWebChatBody(provider: string, model: string, messages: ChatMessage[]) {
+  return {
+    model,
+    messages,
+    stream: true,
+    temperature: 0.2,
+    ...(provider === "openrouter" ? { provider: { allow_fallbacks: true } } : {}),
+  };
+}
+
+export function formatProviderError(provider: string, model: string, status: number, raw: string): string {
+  let parsed: ProviderErrorEnvelope | null = null;
+  try { parsed = JSON.parse(raw) as ProviderErrorEnvelope; } catch { /* provider may return plain text */ }
+  const message = parsed?.error?.message || parsed?.message || raw.trim() || "Unknown provider error";
+  const missingAttestations = parsed?.error?.metadata?.missing_attestation_types || [];
+
+  if (provider === "openrouter") {
+    if (status === 403 && missingAttestations.includes("age_18plus")) {
+      return `OpenRouter requires a one-time 18+ age confirmation before ${model} can be used. Confirm it at https://openrouter.ai/settings/preferences and retry. No OpenPlanter setting change is required.`;
+    }
+    if (status === 404 && /guardrail restrictions|data policy/i.test(message)) {
+      return `OpenRouter cannot find an endpoint for ${model} that is allowed by your account or API-key privacy guardrails. OpenPlanter is not forcing Zero Data Retention or a provider. Use a compatible model or review https://openrouter.ai/settings/privacy.`;
+    }
+    if (status === 400 && /firecrawl/i.test(message) && /zero data retention|zdr/i.test(message)) {
+      return "OpenRouter web search is conflicting with Zero Data Retention. OpenPlanter no longer enables OpenRouter's web-search plugin automatically; refresh to the latest deployment and retry.";
+    }
+  }
+
+  return `${status}: ${message.slice(0, 500)}`;
+}
+
+export async function webSolve(objective: string, sessionId: string, signal?: AbortSignal) {
+  const s = read();
+  const provider = s.config.provider;
+  const key = s.credentials[provider];
+  const keylessLocal = provider === "ollama" || provider === "lmstudio";
+  if (!key && !keylessLocal) throw new Error(`Add a ${provider} API key in Settings first.`);
+  if (provider === "anthropic") {
+    throw new Error("For Claude through the web app, select provider 'openrouter' and an anthropic/... model. Direct Anthropic browser transport is not enabled in this build.");
+  }
+
+  const started = Date.now();
+  const inputTokens = Math.max(1, Math.ceil(objective.length / 4));
+  window.dispatchEvent(new CustomEvent("agent-step", { detail: { depth: 0, step: 1, tool_name: null, tokens: { input_tokens: inputTokens, output_tokens: 0 }, elapsed_ms: 0, is_final: false } }));
+  const messages: ChatMessage[] = (s.history[sessionId] || []).filter((x) => x.role === "user" || x.role === "assistant").slice(-20).map((x) => ({ role: x.role, content: x.content }));
+  const research = await webResearch(objective).catch(() => "");
+  const prompt = research ? `${objective}\n\nUse these web sources when relevant. Cite URLs and distinguish retrieved facts from your own reasoning:\n${research}` : objective;
+  messages.push({ role: "user", content: prompt });
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (key) headers.Authorization = `Bearer ${key}`;
+  if (provider === "openrouter") {
+    headers["HTTP-Referer"] = location.origin;
+    headers["X-Title"] = "OpenPlanter";
+  }
+
+  const response = await fetch(`${endpoints[provider] || endpoints.openrouter}/chat/completions`, {
+    method: "POST",
+    signal,
+    headers,
+    body: JSON.stringify(buildWebChatBody(provider, s.config.model, messages)),
+  });
+  if (!response.ok) {
+    const raw = await response.text();
+    throw new Error(formatProviderError(provider, s.config.model, response.status, raw));
+  }
+  if (!response.body) throw new Error("Provider returned no response stream.");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = "";
+  const emit = (text: string) => { result += text; window.dispatchEvent(new CustomEvent("agent-chunk", { detail: { text, result } })); };
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") continue;
+      try { const delta = JSON.parse(data).choices?.[0]?.delta?.content; if (delta) emit(delta); } catch { /* ignore incomplete SSE frames */ }
+    }
+  }
+  if (!result.trim()) throw new Error("The model returned an empty response.");
+  webAddHistory(sessionId, { seq: webHistory(sessionId).length, timestamp: new Date().toISOString(), role: "assistant", content: result, is_rendered: true });
+  window.dispatchEvent(new CustomEvent("agent-step", { detail: { depth: 0, step: 1, tool_name: null, tokens: { input_tokens: inputTokens, output_tokens: Math.max(1, Math.ceil(result.length / 4)) }, elapsed_ms: Date.now() - started, is_final: true } }));
+  window.dispatchEvent(new CustomEvent("agent:complete", { detail: { result } }));
+}
+
 export function webCancel() { /* fetch is aborted by invoke layer */ }
 export function webAbortController() { return new AbortController(); }
 export function clearWebData() { wipeWorkspace(); }
