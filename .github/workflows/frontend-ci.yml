@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - v0/openplanter-36c03735
     paths:
       - "openplanter-desktop/frontend/**"
       - ".github/workflows/frontend-ci.yml"
