@@ -11,6 +11,7 @@ import {
 } from "./api/events";
 import { appState } from "./state/store";
 import { isTauri } from "./api/web";
+import { applyWebAppearance, getWebPreferences } from "./api/webPreferences";
 
 const SPLASH_ART = [
   " .oOo.      ___                   ____  _             _                .oOo. ",
@@ -22,21 +23,19 @@ const SPLASH_ART = [
 ].join("\n");
 
 async function init() {
-  if (!((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__)) {
-    document.documentElement.dataset.theme = localStorage.getItem("openplanter:theme") || "dark";
-  }
+  if (!isTauri()) applyWebAppearance(getWebPreferences());
+
   const app = document.getElementById("app")!;
   createApp(app);
 
-  // Load initial config
   let provider = "";
   let model = "";
   try {
     const config = await getConfig();
     provider = config.provider;
     model = config.model;
-    appState.update((s) => ({
-      ...s,
+    appState.update((state) => ({
+      ...state,
       provider: config.provider,
       model: config.model,
       sessionId: config.session_id,
@@ -46,17 +45,16 @@ async function init() {
       maxDepth: config.max_depth,
       maxStepsPerCall: config.max_steps_per_call,
     }));
-  } catch (e) {
-    console.error("Failed to load config:", e);
+  } catch (error) {
+    console.error("Failed to load config:", error);
   }
 
-  // Add splash art and startup info (session created lazily on first message)
   const state = appState.get();
   const reasoningLabel = state.reasoningEffort ?? "off";
   const modeLabel = state.recursive ? "recursive" : "flat";
 
-  appState.update((s) => ({
-    ...s,
+  appState.update((current) => ({
+    ...current,
     messages: [
       {
         id: crypto.randomUUID(),
@@ -85,39 +83,41 @@ async function init() {
     ],
   }));
 
-  // Subscribe to agent events — await each to ensure listeners are registered
-  await onAgentTrace((msg) => {
-    console.log("[trace]", msg);
+  await onAgentTrace((message) => {
+    console.log("[trace]", message);
   });
 
   await onAgentStep((event) => {
-    appState.update((s) => ({
-      ...s,
-      inputTokens: s.inputTokens + event.tokens.input_tokens,
-      outputTokens: s.outputTokens + event.tokens.output_tokens,
+    appState.update((current) => ({
+      ...current,
+      inputTokens: current.inputTokens + event.tokens.input_tokens,
+      outputTokens: current.outputTokens + event.tokens.output_tokens,
       currentStep: event.step,
       currentDepth: event.depth,
     }));
 
-    // Tauri events need forwarding; browser events already reach ChatPane directly.
+    // Browser webSolve already dispatched this exact DOM event. Re-dispatching
+    // it here creates a feedback loop. Only native Tauri events need bridging.
     if (isTauri()) {
       window.dispatchEvent(new CustomEvent("agent-step", { detail: event }));
     }
   });
 
   await onAgentDelta((event) => {
-    const detail = new CustomEvent("agent-delta", { detail: event });
-    window.dispatchEvent(detail);
+    // Same ownership rule as agent-step: browser events are already DOM events.
+    if (isTauri()) {
+      window.dispatchEvent(new CustomEvent("agent-delta", { detail: event }));
+    }
   });
 
   await onAgentComplete((result) => {
-    appState.update((s) => ({
-      ...s,
+    appState.update((current) => ({
+      ...current,
       isRunning: false,
       currentStep: 0,
       currentDepth: 0,
       messages: [
-        ...s.messages,
+        ...current.messages,
         {
           id: crypto.randomUUID(),
           role: "assistant" as const,
@@ -127,19 +127,17 @@ async function init() {
         },
       ],
     }));
-
-    // Process input queue
     processQueue();
   });
 
   await onAgentError((message) => {
-    appState.update((s) => ({
-      ...s,
+    appState.update((current) => ({
+      ...current,
       isRunning: false,
       currentStep: 0,
       currentDepth: 0,
       messages: [
-        ...s.messages,
+        ...current.messages,
         {
           id: crypto.randomUUID(),
           role: "system" as const,
@@ -148,21 +146,18 @@ async function init() {
         },
       ],
     }));
-
-    // Process input queue even on error
     processQueue();
   });
 
   await onWikiUpdated((data) => {
-    const detail = new CustomEvent("wiki-updated", { detail: data });
-    window.dispatchEvent(detail);
+    window.dispatchEvent(new CustomEvent("wiki-updated", { detail: data }));
   });
 
   await onCuratorUpdate((event) => {
-    appState.update((s) => ({
-      ...s,
+    appState.update((current) => ({
+      ...current,
       messages: [
-        ...s.messages,
+        ...current.messages,
         {
           id: crypto.randomUUID(),
           role: "system" as const,
@@ -171,8 +166,6 @@ async function init() {
         },
       ],
     }));
-
-    // Notify graph pane to refresh with curator's wiki changes
     window.dispatchEvent(new CustomEvent("curator-done"));
   });
 }
@@ -181,11 +174,8 @@ function processQueue() {
   const state = appState.get();
   if (state.inputQueue.length > 0) {
     const [next, ...rest] = state.inputQueue;
-    appState.update((s) => ({ ...s, inputQueue: rest }));
-    // Dispatch queued-submit event for InputBar to pick up
-    window.dispatchEvent(
-      new CustomEvent("queued-submit", { detail: { text: next } })
-    );
+    appState.update((current) => ({ ...current, inputQueue: rest }));
+    window.dispatchEvent(new CustomEvent("queued-submit", { detail: { text: next } }));
   }
 }
 
