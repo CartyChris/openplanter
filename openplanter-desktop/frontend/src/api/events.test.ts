@@ -1,4 +1,7 @@
 import { vi, describe, it, expect, afterEach } from "vitest";
+import { __markTauriRuntime } from "../__mocks__/tauri";
+
+__markTauriRuntime();
 
 // Track registered listeners
 const listeners: Map<string, Function> = new Map();
@@ -32,11 +35,9 @@ describe("event listeners", () => {
 
     expect(listeners.has("agent:trace")).toBe(true);
 
-    // Simulate Tauri event
     const handler = listeners.get("agent:trace")!;
     handler({ payload: { message: "trace info" } });
     expect(callback).toHaveBeenCalledWith("trace info");
-
     expect(unlisten).toBe(mockUnlisten);
   });
 
