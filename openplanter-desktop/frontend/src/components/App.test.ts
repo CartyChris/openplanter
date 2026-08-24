@@ -7,7 +7,6 @@ vi.mock("@tauri-apps/api/core", async () => {
   return { invoke: mock.invoke };
 });
 
-// Mock sub-components that have heavy dependencies (markdown-it, three.js)
 vi.mock("./StatusBar", () => ({
   createStatusBar: () => document.createElement("div"),
 }));
@@ -22,7 +21,6 @@ vi.mock("./GraphPane", () => ({
 import { appState } from "../state/store";
 import { createApp } from "./App";
 
-// Deterministic UUIDs
 let uuidCounter = 0;
 vi.stubGlobal("crypto", { randomUUID: () => `uuid-${++uuidCounter}` });
 
@@ -47,8 +45,15 @@ describe("createApp", () => {
     appState.set({ ...originalState, messages: [], sessionId: null });
     __setHandler("list_sessions", () => [SESSION_B, SESSION_A]);
     __setHandler("get_credentials_status", () => ({
-      openai: true, anthropic: true, openrouter: false,
-      cerebras: false, ollama: true, exa: false,
+      openai: true,
+      anthropic: true,
+      openrouter: false,
+      google: false,
+      cerebras: false,
+      ollama: true,
+      lmstudio: false,
+      exa: false,
+      firecrawl: false,
     }));
     __setHandler("open_session", () => ({
       id: "20260227-120000-cccc3333",
@@ -70,16 +75,13 @@ describe("createApp", () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root);
-
-    // Wait for async loadSessions
     await vi.waitFor(() => {
-      const items = root.querySelectorAll(".session-list .session-item");
-      expect(items.length).toBe(2);
+      expect(root.querySelectorAll(".session-list .session-item").length).toBe(2);
     });
   });
 
   it("renders settings display", () => {
-    appState.update((s) => ({ ...s, provider: "anthropic", model: "claude-opus-4-6" }));
+    appState.update((state) => ({ ...state, provider: "anthropic", model: "claude-opus-4-6" }));
     const root = document.createElement("div");
     createApp(root);
     const settings = root.querySelector(".settings-display");
@@ -88,32 +90,38 @@ describe("createApp", () => {
     expect(settings!.textContent).toContain("claude-opus-4-6");
   });
 
-  it("renders credential status", async () => {
+  it("renders credential status for all supported providers", async () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root);
-
     await vi.waitFor(() => {
       const creds = root.querySelector(".cred-status");
-      expect(creds!.children.length).toBe(6);
+      expect(creds!.children.length).toBe(9);
       expect(creds!.querySelector(".cred-ok")!.textContent).toContain("openai");
       expect(creds!.querySelector(".cred-missing")!.textContent).toContain("openrouter");
     });
+  });
+
+  it("renders portrait-accessible mobile New and Threads actions", () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root);
+    const dock = root.querySelector(".mobile-dock");
+    expect(dock).not.toBeNull();
+    expect(dock!.querySelector('[data-action="new-session"]')).not.toBeNull();
+    expect(dock!.querySelector('[data-action="threads"]')).not.toBeNull();
   });
 
   it("new session button creates session and clears state", async () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root);
-
     await vi.waitFor(() => {
       expect(root.querySelectorAll(".session-list .session-item").length).toBe(2);
     });
-
     const newBtn = root.querySelector(".sidebar > .session-item") as HTMLElement;
     expect(newBtn.textContent).toBe("+ New Session");
     newBtn.click();
-
     await vi.waitFor(() => {
       expect(appState.get().sessionId).toBe("20260227-120000-cccc3333");
     });
@@ -124,7 +132,6 @@ describe("createApp", () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root);
-
     await vi.waitFor(() => {
       const items = root.querySelectorAll(".session-list .session-item");
       expect(items.length).toBe(1);
@@ -151,7 +158,6 @@ describe("session delete confirmation flow", () => {
     }));
     __setHandler("delete_session", ({ id }: { id: string }) => {
       deletedIds.push(id);
-      // After delete, list_sessions returns empty
       __setHandler("list_sessions", () => []);
     });
     __setHandler("get_session_history", () => []);
@@ -167,22 +173,16 @@ describe("session delete confirmation flow", () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root);
-
     await vi.waitFor(() => {
       expect(root.querySelectorAll(".session-list .session-item").length).toBe(1);
     });
-
     const deleteBtn = root.querySelector(".session-delete") as HTMLElement;
-    expect(deleteBtn.textContent).toBe("\u00d7");
-
-    // First click: enters confirmation state
+    expect(deleteBtn.textContent).toBe("×");
     deleteBtn.click();
     expect(deleteBtn.textContent).toBe("Delete?");
     expect(deleteBtn.style.color).toBe("var(--error)");
     expect(deleteBtn.style.fontWeight).toBe("600");
     expect(deleteBtn.style.display).toBe("inline");
-
-    // Session should NOT be deleted yet
     expect(deletedIds).toEqual([]);
   });
 
@@ -190,20 +190,13 @@ describe("session delete confirmation flow", () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root);
-
     await vi.waitFor(() => {
       expect(root.querySelectorAll(".session-list .session-item").length).toBe(1);
     });
-
     const deleteBtn = root.querySelector(".session-delete") as HTMLElement;
-
-    // First click: confirm
     deleteBtn.click();
     expect(deleteBtn.textContent).toBe("Delete?");
-
-    // Second click: delete
     deleteBtn.click();
-
     await vi.waitFor(() => {
       expect(deletedIds).toEqual([SESSION_A.id]);
     });
@@ -211,32 +204,21 @@ describe("session delete confirmation flow", () => {
 
   it("confirmation resets after timeout", async () => {
     vi.useFakeTimers();
-
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root);
-
-    // Wait for async session loading
     await vi.waitFor(() => {
       expect(root.querySelectorAll(".session-list .session-item").length).toBe(1);
     });
-
     const deleteBtn = root.querySelector(".session-delete") as HTMLElement;
-
-    // First click: confirm
     deleteBtn.click();
     expect(deleteBtn.textContent).toBe("Delete?");
-
-    // Advance past 3s timeout
     vi.advanceTimersByTime(3100);
-
-    // Should be reset
-    expect(deleteBtn.textContent).toBe("\u00d7");
+    expect(deleteBtn.textContent).toBe("×");
     expect(deleteBtn.style.color).toBe("");
     expect(deleteBtn.style.fontWeight).toBe("");
     expect(deleteBtn.style.display).toBe("");
     expect(deletedIds).toEqual([]);
-
     vi.useRealTimers();
   });
 
@@ -244,22 +226,15 @@ describe("session delete confirmation flow", () => {
     __setHandler("delete_session", () => {
       throw new Error("Permission denied");
     });
-
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root);
-
     await vi.waitFor(() => {
       expect(root.querySelectorAll(".session-list .session-item").length).toBe(1);
     });
-
     const deleteBtn = root.querySelector(".session-delete") as HTMLElement;
-
-    // First click: confirm
     deleteBtn.click();
-    // Second click: delete (will fail)
     deleteBtn.click();
-
     await vi.waitFor(() => {
       expect(deleteBtn.textContent).toBe("Error!");
     });
@@ -271,41 +246,32 @@ describe("session delete confirmation flow", () => {
       expect(resume).toBe(true);
       return SESSION_A;
     });
-
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root);
-
     await vi.waitFor(() => {
       expect(root.querySelectorAll(".session-list .session-item").length).toBe(1);
     });
-
     const label = root.querySelector(".session-list .session-item span") as HTMLElement;
     label.click();
-
     await vi.waitFor(() => {
       expect(appState.get().sessionId).toBe(SESSION_A.id);
     });
   });
 
   it("deleting active session switches to new one", async () => {
-    appState.update((s) => ({ ...s, sessionId: SESSION_A.id }));
-
+    appState.update((state) => ({ ...state, sessionId: SESSION_A.id }));
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root);
-
     await vi.waitFor(() => {
       expect(root.querySelectorAll(".session-list .session-item").length).toBe(1);
     });
-
     const deleteBtn = root.querySelector(".session-delete") as HTMLElement;
-    deleteBtn.click(); // confirm
-    deleteBtn.click(); // delete
-
+    deleteBtn.click();
+    deleteBtn.click();
     await vi.waitFor(() => {
       expect(deletedIds).toEqual([SESSION_A.id]);
-      // Should have switched to new session
       expect(appState.get().sessionId).toBe("new-session");
     });
   });
