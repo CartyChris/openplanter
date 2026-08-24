@@ -95,7 +95,6 @@ describe("dispatchSlashCommand", () => {
   });
 
   it("model dispatches", async () => {
-    // /model with no args should show current info
     const result = await dispatchSlashCommand("/model");
     expect(result).not.toBeNull();
     expect(result!.action).toBe("handled");
@@ -103,7 +102,6 @@ describe("dispatchSlashCommand", () => {
   });
 
   it("reasoning dispatches", async () => {
-    // /reasoning with no args should show current level
     const result = await dispatchSlashCommand("/reasoning");
     expect(result).not.toBeNull();
     expect(result!.action).toBe("handled");
@@ -116,6 +114,8 @@ describe("dispatchSlashCommand", () => {
     __setHandler(
       "open_session",
       ({ id, resume }: { id: string | null; resume: boolean }) => {
+        expect(id).toBeNull();
+        expect(resume).toBe(false);
         return {
           id: "20260227-100000-abcd1234",
           created_at: "2026-02-27T10:00:00Z",
@@ -125,9 +125,9 @@ describe("dispatchSlashCommand", () => {
       }
     );
 
-    // Mock window.dispatchEvent since we're in node environment
     const origWindow = globalThis.window;
     (globalThis as any).window = {
+      __TAURI_INTERNALS__: {},
       dispatchEvent: () => {},
     };
 
