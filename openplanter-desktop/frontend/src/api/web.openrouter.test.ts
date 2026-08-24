@@ -5,12 +5,16 @@ describe("OpenRouter browser routing", () => {
   it("does not force the legacy web plugin or ZDR policy", () => {
     const body = buildWebChatBody("openrouter", "meta/muse-spark-1.2-contributor", [
       { role: "user", content: "Hi" },
-    ]) as Record<string, unknown>;
+    ]) as Record<string, any>;
 
     expect(body.plugins).toBeUndefined();
     expect(body.provider).toEqual({ allow_fallbacks: true });
-    expect((body.provider as Record<string, unknown>).zdr).toBeUndefined();
-    expect((body.provider as Record<string, unknown>).data_collection).toBeUndefined();
+    expect(body.provider.zdr).toBeUndefined();
+    expect(body.provider.data_collection).toBeUndefined();
+    expect(body.tools).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "openrouter:web_search" }),
+      expect.objectContaining({ type: "openrouter:web_fetch" }),
+    ]));
   });
 
   it("turns the 18+ attestation error into a one-time setup message", () => {
@@ -37,12 +41,42 @@ describe("OpenRouter browser routing", () => {
     expect(message).toContain("not forcing Zero Data Retention");
   });
 
-  it("recognizes the Firecrawl plus ZDR incompatibility", () => {
+  it("recognizes legacy Firecrawl plus ZDR errors without asking for an external key", () => {
     const raw = JSON.stringify({
       error: { message: "Firecrawl is not available when Zero Data Retention (ZDR) is enabled." },
     });
 
     const message = formatProviderError("openrouter", "some/model", 400, raw);
-    expect(message).toContain("no longer enables OpenRouter's web-search plugin automatically");
+    expect(message).toContain("legacy Firecrawl/ZDR conflict");
+    expect(message).toContain("OpenRouter server tools");
+    expect(message).not.toContain("add an Exa");
+    expect(message).not.toContain("add a Firecrawl");
+  });
+
+  it("explains tool-calling incompatibility without asking for Exa", () => {
+    const raw = JSON.stringify({ error: { message: "Model does not support tool calling" } });
+    const message = formatProviderError("openrouter", "some/model", 400, raw);
+    expect(message).toContain("tool-capable OpenRouter model");
+    expect(message).not.toContain("Exa API key");
+  });
+
+  it("explains insufficient OpenRouter credits", () => {
+    const message = formatProviderError(
+      "openrouter",
+      "some/model",
+      402,
+      JSON.stringify({ error: { message: "Insufficient credits" } })
+    );
+    expect(message).toContain("insufficient credits");
+  });
+
+  it("explains rate limits", () => {
+    const message = formatProviderError(
+      "openrouter",
+      "some/model",
+      429,
+      JSON.stringify({ error: { message: "Rate limit exceeded" } })
+    );
+    expect(message).toContain("rate-limiting");
   });
 });

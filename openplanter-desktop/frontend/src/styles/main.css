@@ -1054,7 +1054,30 @@ html, body {
 	.workspace-evidence { padding: 9px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-secondary); font-size: 12px; cursor: pointer; }
 	.workspace-evidence:hover { border-color: var(--accent); color: var(--text-primary); }
 
-@media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: var(--statusbar-height) auto 1fr; } .sidebar { display: none; } .chat-pane { grid-column: 1; } .graph-pane { display: none; } .web-toolbar { top: var(--statusbar-height); } }
+@media (max-width: 760px) {
+  :root { --statusbar-height: 46px; }
+  html, body { min-height: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
+  #app { grid-template-columns: 1fr; grid-template-rows: var(--statusbar-height) auto minmax(0, 1fr); height: 100dvh; min-height: 100svh; gap: 0; }
+  .sidebar { display: none; }
+  .chat-pane { grid-column: 1; grid-row: 3; min-height: 0; height: 100%; }
+  .graph-pane { display: none; }
+  .status-bar { min-width: 0; padding-inline: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+  .web-toolbar { position: relative; inset: auto; grid-row: 2; top: auto; display: flex; justify-content: flex-start; overflow-x: auto; max-width: 100%; padding: 8px max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); border-radius: 0; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .web-toolbar::-webkit-scrollbar { display: none; }
+  .web-toolbar > span { display: none; }
+  .web-toolbar button { min-height: 44px; padding: 8px 13px; white-space: nowrap; font-size: 13px; }
+  .chat-messages { padding: 12px max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+  .input-bar { padding: 8px max(10px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-bottom)); padding-right: max(10px, env(safe-area-inset-right)); gap: 8px; }
+  .input-bar textarea { min-height: 46px; max-height: 128px; font-size: 16px; line-height: 1.45; padding: 10px 12px; }
+  .input-bar button { min-width: 76px; min-height: 46px; height: 46px; font-size: 15px; }
+  .autocomplete-popup { max-height: min(36dvh, 280px); }
+}
+
+@media (max-width: 390px) {
+  .web-toolbar button { padding-inline: 11px; font-size: 12px; }
+  .chat-messages { padding-inline: 12px; }
+  .input-bar button { min-width: 68px; padding-inline: 10px; }
+}
 
 /* ── Wiki source drawer ── */
 
