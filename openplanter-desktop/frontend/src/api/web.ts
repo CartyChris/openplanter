@@ -242,6 +242,7 @@ export async function webResearch(query: string): Promise<string> {
 
 export function webGraph(): GraphData {
   const docs = read().documents;
+<<<<<<< HEAD
   const nodes = docs.map((doc, index) => ({
     id: `doc-${index}`,
     label: doc.name,
@@ -256,6 +257,18 @@ export function webGraph(): GraphData {
     return linked ? [{ source: `doc-${index}`, target: `doc-${targetIndex}`, label: "references" }] : [];
   }));
   return { nodes, edges };
+=======
+  return {
+    nodes: docs.map((doc, index) => ({
+      id: `doc-${index}`,
+      label: doc.name,
+      category: "document",
+      path: doc.name,
+      node_type: "source" as const,
+    })),
+    edges: [],
+  };
+>>>>>>> bf04c546bd2241d6de0718e6f98435b8506b6b14
 }
 
 export function webSaveDocument(name: string, content: string) {

@@ -261,7 +261,6 @@ html[data-reduced-motion="true"] *::after {
     gap: 6px;
   }
   .input-bar textarea { min-width: 0; }
-
   .mobile-dock button {
     min-width: 0;
     min-height: 44px;
