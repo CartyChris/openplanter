@@ -227,8 +227,14 @@ html[data-reduced-motion="true"] *::after {
   }
   .web-toolbar button:nth-of-type(n + 3) { display: none; }
 
-  .sidebar,
-  .graph-pane { display: none !important; }
+  .sidebar { display: none !important; }
+  .graph-pane {
+    display: none !important;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+  }
+  body.graph-mobile-open .graph-pane { display: grid !important; }
 
   .mobile-dock {
     grid-row: 3;
@@ -245,6 +251,17 @@ html[data-reduced-motion="true"] *::after {
     gap: 4px;
     z-index: 35;
   }
+  .chat-mode-select {
+    max-width: 112px;
+    min-height: 42px;
+  }
+
+  .input-bar {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    gap: 6px;
+  }
+  .input-bar textarea { min-width: 0; }
+
   .mobile-dock button {
     min-width: 0;
     min-height: 44px;
