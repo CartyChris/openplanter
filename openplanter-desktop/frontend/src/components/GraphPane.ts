@@ -238,6 +238,8 @@ export function createGraphPane(): HTMLElement {
   }
 
   // --- Refresh handler ---
+  window.addEventListener("knowledge-graph-updated", () => { void autoRefreshGraph(); });
+
   refreshBtn.addEventListener("click", async () => {
     refreshBtn.classList.add("spinning");
     try {

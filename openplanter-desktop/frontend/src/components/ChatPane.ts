@@ -4,6 +4,7 @@ import { createInputBar } from "./InputBar";
 import { parseAgentContent, stripToolXml, type ContentSegment } from "./contentParser";
 import MarkdownIt from "markdown-it";
 import hljs from "highlight.js";
+import { downloadText } from "../api/web";
 
 /** Key argument names for tool call display. */
 const KEY_ARGS: Record<string, string> = {
@@ -374,6 +375,24 @@ export function createChatPane(): HTMLElement {
                 el.appendChild(renderToolResultBlock(seg));
               }
             }
+          }
+          const htmlMatch = msg.content.match(/```html\s*([\s\S]*?)```/i);
+          const jsMatch = msg.content.match(/```(?:javascript|js|tsx)\s*([\s\S]*?)```/i);
+          if (htmlMatch || jsMatch) {
+            const artifactButton = document.createElement("button");
+            artifactButton.className = "artifact-download-button";
+            artifactButton.textContent = htmlMatch ? "Open HTML artifact" : "Download code artifact";
+            artifactButton.addEventListener("click", () => {
+              if (htmlMatch) {
+                const blob = new Blob([htmlMatch[1]], { type: "text/html" });
+                const url = URL.createObjectURL(blob);
+                window.open(url, "_blank", "noopener,noreferrer");
+                setTimeout(() => URL.revokeObjectURL(url), 30_000);
+              } else if (jsMatch) {
+                downloadText("openplanter-artifact.js", jsMatch[1], "text/javascript");
+              }
+            });
+            el.appendChild(artifactButton);
           }
         } else {
           el.textContent = msg.content;

@@ -242,6 +242,22 @@ export async function webResearch(query: string): Promise<string> {
 
 export function webGraph(): GraphData {
   const docs = read().documents;
+<<<<<<< HEAD
+  const nodes = docs.map((doc, index) => ({
+    id: `doc-${index}`,
+    label: doc.name,
+    category: "document",
+    path: doc.name,
+    node_type: "source" as const,
+    content: doc.content,
+  }));
+  const edges = docs.flatMap((doc, index) => docs.flatMap((target, targetIndex) => {
+    if (index === targetIndex) return [];
+    const linked = doc.content.includes(target.name) || doc.content.includes(target.name.replace(/\.md$/i, ""));
+    return linked ? [{ source: `doc-${index}`, target: `doc-${targetIndex}`, label: "references" }] : [];
+  }));
+  return { nodes, edges };
+=======
   return {
     nodes: docs.map((doc, index) => ({
       id: `doc-${index}`,
@@ -252,6 +268,7 @@ export function webGraph(): GraphData {
     })),
     edges: [],
   };
+>>>>>>> bf04c546bd2241d6de0718e6f98435b8506b6b14
 }
 
 export function webSaveDocument(name: string, content: string) {
@@ -477,6 +494,10 @@ export async function webSolve(objective: string, sessionId: string, signal?: Ab
     content: result,
     is_rendered: true,
   });
+
+  const findings = `# Session finding\n\n- Session: ${sessionId}\n- Captured: ${new Date().toISOString()}\n\n## Relevant findings\n\n${result}`;
+  webSaveDocument(`sessions/${sessionId}/finding-${Date.now()}.md`, findings);
+  window.dispatchEvent(new CustomEvent("knowledge-graph-updated", { detail: { sessionId } }));
   window.dispatchEvent(
     new CustomEvent("agent-step", {
       detail: {

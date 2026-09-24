@@ -13,6 +13,16 @@ export function createInputBar(): HTMLElement {
   textarea.placeholder = "Enter objective or /command...";
   textarea.autofocus = true;
 
+  const modeSelect = document.createElement("select");
+  modeSelect.className = "chat-mode-select";
+  for (const mode of ["Research", "Artifact: HTML", "Artifact: 3D", "Tool calling", "Subagents"]) {
+    const option = document.createElement("option");
+    option.value = mode;
+    option.textContent = mode;
+    modeSelect.appendChild(option);
+  }
+  modeSelect.title = "Choose how OpenPlanter should handle this request";
+
   const submitBtn = document.createElement("button");
   submitBtn.textContent = "Send";
 
@@ -21,6 +31,7 @@ export function createInputBar(): HTMLElement {
   cancelBtn.style.display = "none";
   cancelBtn.style.background = "var(--error)";
 
+  bar.appendChild(modeSelect);
   bar.appendChild(textarea);
   bar.appendChild(submitBtn);
   bar.appendChild(cancelBtn);
@@ -44,11 +55,14 @@ export function createInputBar(): HTMLElement {
   async function handleSubmit() {
     const text = textarea.value.trim();
     if (!text) return;
+    const mode = modeSelect.value;
+    const modePrompt = mode === "Research" ? "" : `\n\n[OpenPlanter mode: ${mode}. Use available tools and produce a self-contained deliverable when applicable. For Subagents, delegate focused source-finding tasks and reconcile their evidence.]`;
+    const objective = `${text}${modePrompt}`;
 
     // Add to input history
     appState.update((s) => ({
       ...s,
-      inputHistory: [text, ...s.inputHistory.filter((h) => h !== text)].slice(0, 100),
+      inputHistory: [objective, ...s.inputHistory.filter((h) => h !== objective)].slice(0, 100),
     }));
     historyIndex = -1;
     savedInput = "";
@@ -101,7 +115,7 @@ export function createInputBar(): HTMLElement {
         {
           id: crypto.randomUUID(),
           role: "user" as const,
-          content: text,
+          content: objective,
           timestamp: Date.now(),
         },
       ],
@@ -122,7 +136,7 @@ export function createInputBar(): HTMLElement {
     }
 
     try {
-      await solve(text, appState.get().sessionId!);
+      await solve(objective, appState.get().sessionId!);
     } catch (e) {
       appState.update((s) => ({
         ...s,
@@ -176,7 +190,8 @@ export function createInputBar(): HTMLElement {
     if (autocomplete.handleKeydown(e)) return;
 
     // Enter submits (unless Shift+Enter for newline)
-    if (e.key === "Enter" && !e.shiftKey) {
+    const composing = Boolean((e as KeyboardEvent & { nativeEvent?: { isComposing?: boolean } }).nativeEvent?.isComposing);
+    if (e.key === "Enter" && !e.shiftKey && !composing && e.keyCode !== 229) {
       e.preventDefault();
       handleSubmit();
       return;
