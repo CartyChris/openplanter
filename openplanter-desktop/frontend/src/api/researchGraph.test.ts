@@ -1,0 +1,21 @@
+import { expect, it } from "vitest";
+import { buildResearchGraph } from "./researchGraph";
+const document = (name: string, content: string) => ({ name, content, createdAt: "2026-10-27" });
+it("connects explicit entities and deduplicated citations to source documents", () => {
+  const graph = buildResearchGraph([document("a.md", "[[Example Company]] cites https://example.com/report. Again https://example.com/report")]);
+  expect(graph.nodes).toHaveLength(3); expect(graph.edges).toHaveLength(2);
+  expect(graph.edges.map((edge) => edge.label)).toEqual(["mentions", "cites"]);
+  expect(graph.nodes.find((node) => node.category === "citation")?.path).toBe("https://example.com/report");
+});
+it("keeps document IDs stable across reorder and deletion", () => {
+  const a = document("a.md", "A"), b = document("b.md", "B");
+  expect(buildResearchGraph([a, b]).nodes[1].id).toBe(buildResearchGraph([b]).nodes[0].id);
+});
+it("does not invent relationships from filename substrings", () => {
+  expect(buildResearchGraph([document("a.md", "This mentions a letter b"), document("b.md", "")]).edges).toEqual([]);
+});
+it("preserves explicit document-reference provenance", () => {
+  const graph = buildResearchGraph([document("a.md", "[See source](b.md)"), document("b.md", "# Contradiction\n\nA claim")]);
+  expect(graph.edges).toEqual([{ source: "document:a.md", target: "document:b.md", label: "references" }]);
+  expect(graph.nodes[1].category).toBe("contradiction");
+});

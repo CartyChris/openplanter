@@ -15,6 +15,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     if (!session) return res.status(401).json({ error: "Sign in to access private research." });
     const userId = session.user.id;
+    const expectedOwner = req.headers["x-workspace-owner"];
+    if ((req.method === "PUT" || expectedOwner) && expectedOwner !== userId) {
+      return res.status(409).json({ error: "The signed-in account changed. Export unsaved research, then reload before saving." });
+    }
     if (req.method === "GET") {
       const [workspace] = await db.select({ data: workspaces.data, revision: workspaces.revision, updatedAt: workspaces.updatedAt }).from(workspaces).where(eq(workspaces.userId, userId));
       return res.status(200).json(workspace ?? { data: null, revision: 0 });

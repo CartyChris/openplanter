@@ -377,6 +377,18 @@ export function createChatPane(): HTMLElement {
               }
             }
           }
+          const openUIMatch = msg.content.match(/```openui\s*([\s\S]*?)```/i);
+          if (openUIMatch) {
+            const reportButton = document.createElement("button");
+            reportButton.className = "artifact-download-button";
+            reportButton.textContent = "Open interactive research report";
+            reportButton.style.minHeight = "44px";
+            reportButton.onclick = async () => {
+              try { (await import("./OpenUIReport")).openOpenUIReport(openUIMatch[1]); }
+              catch { reportButton.textContent = "Report unavailable — original output is shown above"; }
+            };
+            el.appendChild(reportButton);
+          }
           const htmlMatch = msg.content.match(/```html\s*([\s\S]*?)```/i);
           const jsMatch = msg.content.match(/```(?:javascript|js|tsx)\s*([\s\S]*?)```/i);
           if (htmlMatch || jsMatch) {

@@ -3,8 +3,9 @@ import { cloudRequest as request } from "../api/cloudSync";
 
 export function openCloudWorkspace() {
   const dialog = document.createElement("dialog");
+  dialog.className = "research-dialog";
   dialog.setAttribute("aria-label", "Private research storage");
-  Object.assign(dialog.style, { width: "min(480px, calc(100vw - 24px))", maxHeight: "calc(100dvh - 24px)", overflowY: "auto", padding: "20px", borderRadius: "12px", background: "#111827", color: "#f9fafb", border: "1px solid #64748b" });
+  Object.assign(dialog.style, { width: "min(480px, calc(100vw - 24px))", maxHeight: "calc(100dvh - 24px)", overflowY: "auto", padding: "20px", borderRadius: "12px", background: "var(--bg-secondary)", color: "var(--text-primary)", margin: "auto", border: "1px solid #64748b" });
   const heading = document.createElement("h2"); heading.textContent = "Private research storage";
   const note = document.createElement("p"); note.textContent = "Signed-in research saves automatically. Guest research lasts only for this page. Provider API keys are never uploaded. Export unsaved work before switching accounts or loading a cloud copy.";
   const status = document.createElement("p"); status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
@@ -44,6 +45,15 @@ export function openCloudWorkspace() {
       }),
     );
   }
+  async function finishLogin() {
+    if (researchSync.unsaved) {
+      downloadText("openplanter-guest-recovery.json", JSON.stringify(researchSnapshot(), null, 2), "application/json");
+      status.textContent = "Signed in. A guest research backup was downloaded. Load your cloud account to continue, then import the backup if needed.";
+      content.replaceChildren(button("Load my cloud account", async () => { researchSync.discard(); location.reload(); }));
+      return;
+    }
+    location.reload();
+  }
   function renderForm() {
     const form = document.createElement("form"); Object.assign(form.style, { display: "flex", flexDirection: "column", gap: "12px" });
     const field = (labelText: string, type: string, autocomplete: string) => {
@@ -57,9 +67,9 @@ export function openCloudWorkspace() {
     const signup = button("Create account", async () => {
       if (!form.reportValidity()) { status.textContent = "Enter a valid email and password."; return; }
       await request("/api/auth/sign-up/email", "POST", { email: email.value.trim(), password: password.value, name: email.value.trim().split("@")[0] });
-      password.value = ""; await refresh();
+      password.value = ""; await finishLogin();
     }); signup.type = "button";
-    form.onsubmit = (event) => { event.preventDefault(); void run(async () => { await request("/api/auth/sign-in/email", "POST", { email: email.value.trim(), password: password.value }); password.value = ""; await refresh(); }); };
+    form.onsubmit = (event) => { event.preventDefault(); void run(async () => { await request("/api/auth/sign-in/email", "POST", { email: email.value.trim(), password: password.value }); password.value = ""; await finishLogin(); }); };
     form.append(signin, signup); content.append(form);
   }
   void run(refresh);

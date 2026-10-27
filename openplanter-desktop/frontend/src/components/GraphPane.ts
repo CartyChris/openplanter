@@ -3,7 +3,6 @@ import type { GraphData } from "../api/types";
 import { getGraphData, readWikiFile } from "../api/invoke";
 import {
   initGraph,
-  updateGraph,
   destroyGraph,
   fitView,
   focusNode,
@@ -81,7 +80,6 @@ export function createGraphPane(): HTMLElement {
   sessionToggle.className = "graph-session-toggle";
   sessionToggle.textContent = "\u2726"; // ✦
   sessionToggle.title = "Show only new nodes from this session";
-  sessionToggle.classList.add("active");
 
   const sessionHint = document.createElement("span");
   sessionHint.className = "graph-session-hint";
@@ -148,7 +146,7 @@ export function createGraphPane(): HTMLElement {
   const hiddenCategories = new Set<string>();
   let baselineNodeIds = new Set<string>();
   let baselineCaptured = false;
-  let sessionFilterActive = true;
+  let sessionFilterActive = false;
   let threeCleanup: (() => void) | null = null;
   let currentData: GraphData | null = null;
 
@@ -156,7 +154,7 @@ export function createGraphPane(): HTMLElement {
     if (!currentData) return;
     if (threeCleanup) {
       threeCleanup(); threeCleanup = null; modeBtn.textContent = "3D"; graphContainer.classList.remove("graph-3d-active");
-      initGraph(graphContainer, currentData); layoutSelect.disabled = false;
+      interactionsBound = false; initializeWithData(currentData); layoutSelect.disabled = false;
     } else {
       destroyGraph(); threeCleanup = initThreeGraph(graphContainer, currentData); modeBtn.textContent = "2D"; graphContainer.classList.add("graph-3d-active"); layoutSelect.disabled = true;
     }
@@ -225,13 +223,7 @@ export function createGraphPane(): HTMLElement {
   async function autoRefreshGraph() {
     try {
       const data = await getGraphData();
-      if (data.nodes.length > 0) {
-        updateGraph(data);
-        buildLegend(getCategories());
-        if (sessionFilterActive) {
-          filterBySession(true, baselineNodeIds);
-        }
-      }
+      initializeWithData(data);
     } catch {
       // Silently ignore — graph refresh is best-effort
     }
@@ -288,17 +280,17 @@ export function createGraphPane(): HTMLElement {
   }
 
   // --- Drawer open/close ---
-  function openDrawer(label: string, path: string): void {
+  function openDrawer(label: string, path: string, storedContent?: string): void {
     drawerTitle.textContent = label;
     drawerBody.innerHTML = '<span style="color:var(--text-muted)">Loading...</span>';
     drawerBackdrop.classList.add("visible");
     drawer.classList.add("visible");
 
-    readWikiFile(path).then((content) => {
+    (storedContent !== undefined ? Promise.resolve(storedContent) : readWikiFile(path)).then((content) => {
       drawerBody.innerHTML = md.render(content);
       interceptDrawerLinks();
     }).catch((err) => {
-      drawerBody.innerHTML = `<span style="color:var(--error)">Failed to load: ${err}</span>`;
+      drawerBody.textContent = `Failed to load: ${err}`;
     });
   }
 
@@ -311,9 +303,10 @@ export function createGraphPane(): HTMLElement {
   function interceptDrawerLinks(): void {
     drawerBody.querySelectorAll("a").forEach((link) => {
       const href = link.getAttribute("href");
-      if (!href || !href.endsWith(".md")) return;
+      if (!href) return;
       // Skip external links
-      if (href.startsWith("http://") || href.startsWith("https://")) return;
+      if (href.startsWith("http://") || href.startsWith("https://")) { link.target = "_blank"; link.rel = "noopener noreferrer"; return; }
+      if (!href.endsWith(".md")) return;
 
       link.addEventListener("click", (e) => {
         e.preventDefault();
@@ -343,7 +336,7 @@ export function createGraphPane(): HTMLElement {
     // Source nodes: open the full-width drawer instead
     if (data.node_type === "source") {
       hideDetail();
-      openDrawer(data.label, data.path);
+      openDrawer(data.label, data.path, data.content);
       return;
     }
 
@@ -446,6 +439,11 @@ export function createGraphPane(): HTMLElement {
     const placeholder = pane.querySelector(".graph-placeholder");
     if (placeholder) placeholder.remove();
 
+    if (threeCleanup) {
+      threeCleanup();
+      threeCleanup = initThreeGraph(graphContainer, data);
+      return;
+    }
     initGraph(graphContainer, data);
 
     // Sync dropdown to actual layout (may differ from default if no edges)
@@ -498,7 +496,7 @@ export function createGraphPane(): HTMLElement {
         filterBySession(true, baselineNodeIds);
       }
     } else {
-      updateGraph(data);
+      initializeWithData(data);
     }
   }) as EventListener);
 
@@ -515,8 +513,8 @@ export function createGraphPane(): HTMLElement {
   // Listen for session changes — reset baseline
   window.addEventListener("session-changed", ((e: CustomEvent<{ isNew: boolean }>) => {
     const isNew = e.detail?.isNew ?? false;
-    baselineNodeIds = new Set<string>();
-    baselineCaptured = false;
+    baselineNodeIds = getNodeIds();
+    baselineCaptured = true;
 
     if (isNew) {
       sessionFilterActive = true;

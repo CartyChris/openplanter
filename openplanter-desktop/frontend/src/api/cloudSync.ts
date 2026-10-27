@@ -17,7 +17,11 @@ export class CloudSync<T> {
   }
   enqueue(data: T) {
     const serialized = JSON.stringify(data);
-    if (serialized === this.saved && !this.running) { this.pending = null; return; }
+    if (serialized === this.saved && !this.running) {
+      clearTimeout(this.timer); this.pending = null;
+      if (this.owner && this.state !== "paused") this.set("saved", `All research saved. Cloud revision ${this.revision}.`);
+      return;
+    }
     this.pending = serialized;
     if (!this.owner) { this.set("guest", "Unsaved guest research. Sign in or export before leaving."); return; }
     if (this.state === "paused") return;
