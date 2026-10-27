@@ -271,6 +271,22 @@ export function webDocuments() {
   return read().documents;
 }
 
+export function researchSnapshot() {
+  const { sessions, history, documents } = read();
+  return { sessions, history, documents };
+}
+
+export function restoreResearchSnapshot(snapshot: ReturnType<typeof researchSnapshot>) {
+  const store = read();
+  store.sessions = snapshot.sessions;
+  store.history = snapshot.history;
+  store.documents = snapshot.documents;
+  store.config.session_id = snapshot.sessions[0]?.id ?? null;
+  save(store);
+  window.dispatchEvent(new CustomEvent("knowledge-graph-updated"));
+}
+
+
 export function downloadText(filename: string, content: string, type = "text/markdown") {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);

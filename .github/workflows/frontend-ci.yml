@@ -8,6 +8,11 @@ on:
     paths:
       - "openplanter-desktop/frontend/**"
       - ".github/workflows/frontend-ci.yml"
+      - "api/**"
+      - "server/**"
+      - "package*.json"
+      - "tsconfig.server.json"
+      - "vercel.json"
   workflow_dispatch:
 
 permissions:
@@ -26,6 +31,9 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: openplanter-desktop/frontend/package-lock.json
+      - name: Validate server
+        working-directory: .
+        run: npm ci && npm run check:server && npm run test:server
       - name: Install dependencies
         run: npm ci
       - name: Unit tests

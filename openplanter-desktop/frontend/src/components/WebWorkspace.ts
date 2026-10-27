@@ -1,10 +1,12 @@
 import { appState } from "../state/store";
 import { downloadText } from "../api/web";
+import { openCloudWorkspace } from "./CloudWorkspace";
 
 export function openWorkspaceTools() {
   const overlay = document.createElement("div"); overlay.className = "settings-overlay";
   const panel = document.createElement("section"); panel.className = "settings-panel"; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Research workspace");
   const title = document.createElement("h2"); title.textContent = "Research workspace"; panel.appendChild(title);
+  const cloud = document.createElement("button"); cloud.textContent = "Private cloud storage"; cloud.style.minHeight = "44px"; cloud.onclick = openCloudWorkspace; panel.append(cloud);
   const evidence = document.createElement("textarea"); evidence.placeholder = "Claim or evidence note..."; evidence.rows = 4;
   const list = document.createElement("div"); list.className = "workspace-evidence-list";
   const stored = JSON.parse(localStorage.getItem("openplanter:evidence") || "[]") as { text: string; contradiction: boolean }[];
