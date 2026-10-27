@@ -1,4 +1,26 @@
 import type { ConfigView, GraphData, ModelInfo, ReplayEntry, SessionInfo } from "./types";
+import { CloudSync, cloudRequest } from "./cloudSync";
+
+export const researchSync = new CloudSync<ReturnType<typeof researchSnapshot>>(
+  async (data, revision, owner) => (await cloudRequest("/api/workspace", "PUT", { data, revision }, owner)).revision,
+  () => window.dispatchEvent(new Event("research-sync-status")),
+);
+
+export async function initializeCloudResearch() {
+  const session = await cloudRequest("/api/auth/get-session");
+  if (!session?.user) return;
+  const cloud = await cloudRequest("/api/workspace", "GET", undefined, session.user.id);
+  const data = cloud.data || { sessions: [], history: {}, documents: [] };
+  researchSync.connect(session.user.id, cloud.revision, data);
+  restoreResearchSnapshot(data, false);
+}
+
+export function exportLegacyResearch() {
+  const raw = localStorage.getItem(KEY) || localStorage.getItem("openplanter:web:v1");
+  if (!raw) throw new Error("No legacy browser backup was found.");
+  const { sessions, history, documents } = hydrate(JSON.parse(raw));
+  downloadText("openplanter-legacy-research.json", JSON.stringify({ sessions, history, documents }, null, 2), "application/json");
+}
 import {
   DEFAULT_WEB_PREFERENCES,
   getWebPreferences,
@@ -64,19 +86,22 @@ function hydrate(input: Partial<WebStore>): WebStore {
   };
 }
 
+let memory: WebStore | undefined;
 function read(): WebStore {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) return hydrate(JSON.parse(raw) as Partial<WebStore>);
-    const old = localStorage.getItem("openplanter:web:v1");
-    return old ? hydrate({ ...(JSON.parse(old) as Partial<WebStore>), credentials: {} }) : defaults();
-  } catch {
-    return defaults();
+  if (!memory) {
+    memory = defaults();
+    try {
+      const old = JSON.parse(localStorage.getItem(KEY) || "{}") as Partial<WebStore>;
+      memory.config = { ...memory.config, ...old.config, session_id: null };
+      memory.credentials = old.credentials || {};
+    } catch { /* Legacy storage is optional; cloud research is loaded separately. */ }
   }
+  return memory;
 }
 
 function save(store: WebStore) {
-  localStorage.setItem(KEY, JSON.stringify(store));
+  memory = store;
+  researchSync.enqueue(researchSnapshot());
 }
 
 export const isTauri = () =>
@@ -276,13 +301,14 @@ export function researchSnapshot() {
   return { sessions, history, documents };
 }
 
-export function restoreResearchSnapshot(snapshot: ReturnType<typeof researchSnapshot>) {
+export function restoreResearchSnapshot(snapshot: ReturnType<typeof researchSnapshot>, persist = true) {
   const store = read();
   store.sessions = snapshot.sessions;
   store.history = snapshot.history;
   store.documents = snapshot.documents;
   store.config.session_id = snapshot.sessions[0]?.id ?? null;
-  save(store);
+  if (persist) save(store);
+  else memory = store;
   window.dispatchEvent(new CustomEvent("knowledge-graph-updated"));
 }
 

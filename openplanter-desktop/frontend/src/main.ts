@@ -10,7 +10,7 @@ import {
   onCuratorUpdate,
 } from "./api/events";
 import { appState } from "./state/store";
-import { isTauri } from "./api/web";
+import { isTauri, initializeCloudResearch, researchSync } from "./api/web";
 import { applyWebAppearance, getWebPreferences } from "./api/webPreferences";
 
 const SPLASH_ART = [
@@ -44,13 +44,33 @@ function installBrowserRunStatusBridge() {
 }
 
 async function init() {
+  let syncStatus: HTMLButtonElement | undefined;
   if (!isTauri()) {
     applyWebAppearance(getWebPreferences());
     installBrowserRunStatusBridge();
+    syncStatus = document.createElement("button");
+    syncStatus.type = "button";
+    syncStatus.setAttribute("aria-live", "polite");
+    Object.assign(syncStatus.style, { minHeight: "44px", fontSize: "13px", padding: "8px", flexShrink: "0" });
+    const updateSyncStatus = () => {
+      syncStatus!.textContent = researchSync.owner ? `Cloud: ${researchSync.state}` : "Sign in · temporary research";
+      syncStatus!.title = researchSync.message;
+      syncStatus!.setAttribute("aria-label", researchSync.message);
+    };
+    window.addEventListener("research-sync-status", updateSyncStatus);
+    syncStatus.onclick = async () => { const { openCloudWorkspace } = await import("./components/CloudWorkspace"); openCloudWorkspace(); };
+    try { await initializeCloudResearch(); }
+    catch { researchSync.message = "Cloud unavailable. Research is temporary; export before leaving."; }
+    updateSyncStatus();
+    window.addEventListener("beforeunload", (event) => {
+      if (researchSync.unsaved) { event.preventDefault(); event.returnValue = ""; }
+    });
+    window.addEventListener("online", () => { if (researchSync.owner) void researchSync.retry().catch(() => {}); });
   }
 
   const app = document.getElementById("app")!;
   createApp(app);
+  if (syncStatus) app.querySelector(".web-toolbar")?.prepend(syncStatus);
 
   let provider = "";
   let model = "";

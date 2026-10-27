@@ -1,19 +1,12 @@
-import { researchSnapshot, restoreResearchSnapshot } from "../api/web";
-
-async function request(path: string, method = "GET", body?: unknown) {
-  const response = await fetch(path, { method, credentials: "same-origin", headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
-  if (!response.headers.get("content-type")?.includes("application/json")) throw new Error("Cloud services are unavailable on this preview. Use a Vercel deployment with server functions.");
-  const data = await response.json();
-  if (!response.ok) throw new Error(path.startsWith("/api/auth") ? "Authentication failed. Check your details and try again." : data.error || "Cloud request failed.");
-  return data;
-}
+import { researchSnapshot, researchSync, exportLegacyResearch, downloadText } from "../api/web";
+import { cloudRequest as request } from "../api/cloudSync";
 
 export function openCloudWorkspace() {
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-label", "Private research storage");
   Object.assign(dialog.style, { width: "min(480px, calc(100vw - 24px))", maxHeight: "calc(100dvh - 24px)", overflowY: "auto", padding: "20px", borderRadius: "12px", background: "#111827", color: "#f9fafb", border: "1px solid #64748b" });
   const heading = document.createElement("h2"); heading.textContent = "Private research storage";
-  const note = document.createElement("p"); note.textContent = "Save sessions, messages, and finding documents to your account. Provider API keys stay on this device. Cloud saves are manual, not automatic.";
+  const note = document.createElement("p"); note.textContent = "Signed-in research saves automatically. Guest research lasts only for this page. Provider API keys are never uploaded. Export unsaved work before switching accounts or loading a cloud copy.";
   const status = document.createElement("p"); status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
   const content = document.createElement("div"); Object.assign(content.style, { display: "flex", flexDirection: "column", gap: "12px" });
   const close = document.createElement("button"); close.textContent = "Close"; close.onclick = () => dialog.close(); close.style.minHeight = "44px";
@@ -32,25 +25,23 @@ export function openCloudWorkspace() {
     element.onclick = () => { void run(action); }; return element;
   };
   async function refresh() {
+    content.replaceChildren(
+      button("Export current research", async () => { downloadText("openplanter-research.json", JSON.stringify(researchSnapshot(), null, 2), "application/json"); status.textContent = "Research export downloaded without API keys."; }),
+      button("Recover legacy browser backup", async () => { exportLegacyResearch(); status.textContent = "Legacy research downloaded. Import it after signing in to migrate it to cloud storage."; }),
+    );
     const session = await request("/api/auth/get-session");
-    content.replaceChildren();
     if (!session?.user) { renderForm(); status.textContent = "Sign in to access your private research."; return; }
-    const cloud = await request("/api/workspace");
-    let revision: number = cloud.revision;
-    status.textContent = `Signed in as ${session.user.email}. Cloud revision: ${revision}.`;
+    status.textContent = `Signed in as ${session.user.email}. ${researchSync.message}`;
     content.append(
-      button("Save this device to cloud", async () => {
-        if (revision && !confirm("Replace the cloud workspace with this device's research? Other devices may contain different research. Export a backup first if needed.")) { status.textContent = "Save cancelled."; return; }
-        const saved = await request("/api/workspace", "PUT", { revision, data: researchSnapshot() });
-        revision = saved.revision; status.textContent = `Saved securely. Cloud revision ${revision}.`;
+      button("Save now / retry", async () => { await researchSync.retry(); status.textContent = researchSync.message; }),
+      button("Reload cloud research", async () => {
+        if (!confirm("Reload the cloud copy? Export unsaved work first. Unsaved changes on this page will be discarded.")) { status.textContent = "Reload cancelled."; return; }
+        researchSync.discard(); location.reload();
       }),
-      button("Load cloud research onto this device", async () => {
-        const latest = await request("/api/workspace");
-        if (!latest.data) { status.textContent = "No saved research yet."; return; }
-        if (!confirm("Replace this device's sessions and findings with the cloud copy? Export any unsaved local work first.")) { status.textContent = "Load cancelled."; return; }
-        restoreResearchSnapshot(latest.data); location.reload();
+      button("Sign out", async () => {
+        if (researchSync.unsaved) await researchSync.flush();
+        await request("/api/auth/sign-out", "POST", {}); researchSync.discard(); location.reload();
       }),
-      button("Sign out", async () => { await request("/api/auth/sign-out", "POST", {}); await refresh(); }),
     );
   }
   function renderForm() {
