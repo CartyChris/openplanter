@@ -5,6 +5,7 @@ import { parseAgentContent, stripToolXml, type ContentSegment } from "./contentP
 import MarkdownIt from "markdown-it";
 import hljs from "highlight.js";
 import { downloadText } from "../api/web";
+import { openArtifactPreview } from "./ArtifactPreview";
 
 /** Key argument names for tool call display. */
 const KEY_ARGS: Record<string, string> = {
@@ -384,10 +385,7 @@ export function createChatPane(): HTMLElement {
             artifactButton.textContent = htmlMatch ? "Open HTML artifact" : "Download code artifact";
             artifactButton.addEventListener("click", () => {
               if (htmlMatch) {
-                const blob = new Blob([htmlMatch[1]], { type: "text/html" });
-                const url = URL.createObjectURL(blob);
-                window.open(url, "_blank", "noopener,noreferrer");
-                setTimeout(() => URL.revokeObjectURL(url), 30_000);
+                openArtifactPreview(htmlMatch[1]);
               } else if (jsMatch) {
                 downloadText("openplanter-artifact.js", jsMatch[1], "text/javascript");
               }
