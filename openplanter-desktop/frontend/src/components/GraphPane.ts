@@ -1,5 +1,7 @@
 /** Graph pane: 2D investigative graph (Cytoscape.js). */
 import type { GraphData } from "../api/types";
+import { getNodeProvenance } from "../api/researchGraph";
+import { safeSourceUrl } from "../api/runTelemetry";
 import { getGraphData, readWikiFile } from "../api/invoke";
 import {
   initGraph,
@@ -78,7 +80,7 @@ export function createGraphPane(): HTMLElement {
 
   const sessionToggle = document.createElement("button");
   sessionToggle.className = "graph-session-toggle";
-  sessionToggle.textContent = "\u2726"; // ✦
+  sessionToggle.textContent = "New nodes";
   sessionToggle.title = "Show only new nodes from this session";
 
   const sessionHint = document.createElement("span");
@@ -86,12 +88,12 @@ export function createGraphPane(): HTMLElement {
 
   const refreshBtn = document.createElement("button");
   refreshBtn.className = "graph-refresh-btn";
-  refreshBtn.textContent = "\u21bb"; // ↻
+  refreshBtn.textContent = "Refresh";
   refreshBtn.title = "Refresh graph data";
 
   const fitBtn = document.createElement("button");
   fitBtn.className = "graph-fit-btn";
-  fitBtn.textContent = "\u229e";
+  fitBtn.textContent = "Fit";
   fitBtn.title = "Fit to view";
 
   const modeBtn = document.createElement("button");
@@ -99,7 +101,14 @@ export function createGraphPane(): HTMLElement {
   modeBtn.textContent = "3D";
   modeBtn.title = "Toggle 3D knowledge graph";
 
-  toolbar.append(searchInput, layoutSelect, tierSelect, sessionToggle, sessionHint, refreshBtn, fitBtn, modeBtn);
+  const mobileClose = document.createElement("button");
+  mobileClose.className = "graph-mobile-close";
+  mobileClose.textContent = "Back to chat";
+  mobileClose.onclick = () => {
+    document.body.classList.remove("graph-mobile-open");
+    document.querySelector<HTMLButtonElement>('.mobile-dock [data-action="more"]')?.focus();
+  };
+  toolbar.append(mobileClose, searchInput, layoutSelect, tierSelect, sessionToggle, sessionHint, refreshBtn, fitBtn, modeBtn);
 
   // --- Graph container ---
   const graphContainer = document.createElement("div");
@@ -279,15 +288,39 @@ export function createGraphPane(): HTMLElement {
     }
   }
 
+  function provenancePanel(nodeId: string): HTMLElement {
+    const section = document.createElement("section");
+    section.className = "node-provenance";
+    const sources = currentData ? getNodeProvenance(currentData, nodeId) : [];
+    const heading = document.createElement("h3");
+    heading.textContent = `Linked sources (${sources.length})`;
+    const note = document.createElement("p");
+    note.textContent = "Document-level provenance, not independent verification of every claim. No sources are inferred.";
+    section.append(heading, note);
+    for (const source of sources) {
+      const url = safeSourceUrl(source.path);
+      const item = document.createElement(url ? "a" : "button");
+      item.textContent = url || source.path || source.label;
+      if (item instanceof HTMLAnchorElement && url) { item.href = url; item.target = "_blank"; item.rel = "noopener noreferrer"; }
+      else item.onclick = () => openDrawer(source.label, source.path, source.content, source.id);
+      section.appendChild(item);
+    }
+    return section;
+  }
+
   // --- Drawer open/close ---
-  function openDrawer(label: string, path: string, storedContent?: string): void {
+  let drawerRequest = 0;
+  function openDrawer(label: string, path: string, storedContent?: string, nodeId?: string): void {
+    const request = ++drawerRequest;
     drawerTitle.textContent = label;
     drawerBody.innerHTML = '<span style="color:var(--text-muted)">Loading...</span>';
     drawerBackdrop.classList.add("visible");
     drawer.classList.add("visible");
 
     (storedContent !== undefined ? Promise.resolve(storedContent) : readWikiFile(path)).then((content) => {
+      if (request !== drawerRequest) return;
       drawerBody.innerHTML = md.render(content);
+      if (nodeId) drawerBody.appendChild(provenancePanel(nodeId));
       interceptDrawerLinks();
     }).catch((err) => {
       drawerBody.textContent = `Failed to load: ${err}`;
@@ -336,7 +369,7 @@ export function createGraphPane(): HTMLElement {
     // Source nodes: open the full-width drawer instead
     if (data.node_type === "source") {
       hideDetail();
-      openDrawer(data.label, data.path, data.content);
+      openDrawer(data.label, data.path, data.content, data.id);
       return;
     }
 
@@ -401,7 +434,8 @@ export function createGraphPane(): HTMLElement {
       const sourceLabel = data.path.replace(/^wiki\//, "").replace(/\.md$/, "");
       openDrawer(sourceLabel, data.path);
     });
-    detail.appendChild(viewSourceBtn);
+    if (data.path) detail.appendChild(viewSourceBtn);
+    detail.appendChild(provenancePanel(data.id));
 
     if (data.connectedNodes.length > 0) {
       const connLabel = document.createElement("div");

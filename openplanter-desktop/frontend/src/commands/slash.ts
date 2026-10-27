@@ -1,5 +1,6 @@
 /** Slash command dispatcher. */
 import { appState } from "../state/store";
+import { welcomeMessage } from "../components/welcome";
 import { openSession } from "../api/invoke";
 import { handleModelCommand, type CommandResult } from "./model";
 import { handleReasoningCommand } from "./reasoning";
@@ -39,7 +40,7 @@ export async function dispatchSlashCommand(input: string): Promise<CommandResult
         appState.update((s) => ({
           ...s,
           sessionId: session.id,
-          messages: [],
+          messages: [welcomeMessage()],
           inputTokens: 0,
           outputTokens: 0,
           currentStep: 0,

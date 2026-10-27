@@ -303,9 +303,16 @@ export function createChatPane(): HTMLElement {
     el.className = `message ${msg.role}`;
 
     switch (msg.role) {
-      case "splash":
-        el.textContent = msg.content;
+      case "splash": {
+        const wide = document.createElement("span");
+        wide.className = "splash-wide";
+        wide.textContent = msg.content;
+        const compact = document.createElement("span");
+        compact.className = "splash-compact";
+        compact.textContent = " .oOo.\noO.|.Oo     OpenPlanter\nOo.|.oO     Follow the evidence.\n  .|.\n[=====]\n \\___/";
+        el.append(wide, compact);
         break;
+      }
 
       case "step-header":
         el.textContent = msg.content;

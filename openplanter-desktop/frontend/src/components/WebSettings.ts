@@ -12,6 +12,7 @@ import {
   type WebPreferences,
 } from "../api/webPreferences";
 import { appState } from "../state/store";
+import type { ModelInfo } from "../api/types";
 
 const profiles = [
   "planning",
@@ -99,13 +100,24 @@ export function openWebSettings() {
   panel.className = "settings-panel settings-panel-v2";
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", "OpenPlanter Control Center");
+  panel.setAttribute("aria-modal", "true");
+  const previousFocus = document.activeElement as HTMLElement | null;
+  const dismiss = () => { overlay.remove(); previousFocus?.focus(); };
+  overlay.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.stopPropagation(); dismiss(); }
+    if (event.key !== "Tab") return;
+    const focusable = [...panel.querySelectorAll<HTMLElement>('button:not(:disabled), input, select, textarea, [tabindex="0"]')].filter((element) => element.getClientRects().length);
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  });
 
   const title = document.createElement("h2");
   title.textContent = "Control Center";
   const close = document.createElement("button");
   close.textContent = "Close";
   close.className = "settings-close";
-  close.onclick = () => overlay.remove();
+  close.onclick = dismiss;
   panel.append(title, close);
 
   const tabs = document.createElement("div");
@@ -127,7 +139,8 @@ export function openWebSettings() {
 
   const showTab = (id: SettingsTab) => {
     for (const [key, element] of panelMap) element.classList.toggle("active", key === id);
-    for (const [key, element] of buttonMap) element.classList.toggle("active", key === id);
+    for (const [key, element] of buttonMap) { element.classList.toggle("active", key === id); element.setAttribute("aria-pressed", String(key === id)); }
+    panels.scrollTop = 0;
   };
 
   for (const [id, label] of tabDefinitions) {
@@ -184,44 +197,90 @@ export function openWebSettings() {
   );
 
   const favorites = new Set<string>(JSON.parse(localStorage.getItem("openplanter:favorites") || "[]"));
-  let allModels: { id: string; name: string | null }[] = [];
-  const renderModels = (preferred = model.value || appState.get().model) => {
+  let allModels: ModelInfo[] = [];
+  let selectedModel = appState.get().model;
+  let requestId = 0;
+  const toolsOnly = checkbox(false);
+  const refresh = document.createElement("button");
+  refresh.type = "button";
+  refresh.textContent = "Refresh model catalog";
+  const catalogStatus = document.createElement("p");
+  catalogStatus.className = "catalog-details";
+  catalogStatus.setAttribute("role", "status");
+  const modelDetails = document.createElement("p");
+  modelDetails.className = "catalog-details";
+  const catalogControls = document.createElement("div");
+  catalogControls.className = "catalog-controls";
+  catalogControls.append(refresh, checkField("Tool-capable only", toolsOnly));
+  modelPanel.prepend(catalogControls, catalogStatus);
+  modelPanel.append(modelDetails);
+
+  const describeModel = () => {
+    const item = allModels.find((item) => item.id === selectedModel);
+    modelDetails.textContent = item ? [
+      `Selected: ${item.name || item.id} (${item.id})`,
+      item.contextLength ? `${item.contextLength.toLocaleString()} context tokens` : "Context not reported",
+      item.supportedParameters ? (item.supportedParameters.includes("tools") ? "Tool calling advertised" : "Tool calling not advertised") : "Tool support unknown",
+      item.pricing ? `$${(Number(item.pricing.prompt) * 1e6).toFixed(2)} input / $${(Number(item.pricing.completion) * 1e6).toFixed(2)} output per million tokens` : "Pricing not reported",
+      "Capabilities vary by endpoint. These are not accuracy or legal-research quality ratings.",
+    ].join(" · ") : "Select a model from the catalog.";
+  };
+  const renderModels = (preferred = selectedModel) => {
     const query = search.value.toLowerCase();
-    const filtered = allModels.filter(
-      (item) => item.id.toLowerCase().includes(query) || (item.name || "").toLowerCase().includes(query)
+    const filtered = allModels.filter((item) =>
+      (!toolsOnly.checked || item.supportedParameters?.includes("tools")) &&
+      (item.id.toLowerCase().includes(query) || (item.name || "").toLowerCase().includes(query))
     );
-    model.replaceChildren(
-      ...filtered.map((item) => {
-        const option = document.createElement("option");
-        option.value = item.id;
-        option.textContent = `${favorites.has(item.id) ? "★ " : ""}${item.id}`;
-        return option;
-      })
-    );
-    if (preferred && filtered.some((item) => item.id === preferred)) model.value = preferred;
+    const options = filtered.map((item) => {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = `${favorites.has(item.id) ? "★ " : ""}${item.name || item.id}`;
+      return option;
+    });
+    // Filtering must never silently replace the model that will be saved.
+    if (preferred && !filtered.some((item) => item.id === preferred)) {
+      const retained = document.createElement("option");
+      retained.value = preferred;
+      retained.textContent = `Selected (outside results): ${preferred}`;
+      options.unshift(retained);
+    }
+    model.replaceChildren(...options);
+    model.value = preferred || filtered[0]?.id || "";
+    selectedModel = model.value;
+    describeModel();
   };
 
   const status = document.createElement("p");
   status.className = "settings-status";
+  status.setAttribute("role", "status");
 
   const loadModels = async () => {
-    const preferred = provider.value === appState.get().provider ? appState.get().model : "";
+    const id = ++requestId;
+    const target = provider.value;
+    const preferred = selectedModel;
+    refresh.disabled = true;
+    catalogStatus.textContent = "Loading model catalog…";
     try {
-      allModels = await listModels(provider.value);
-      if (provider.value === "openrouter") {
-        try {
-          allModels = await webRefreshOpenRouterModels();
-        } catch {
-          status.textContent = "Live model refresh unavailable; using the built-in catalog.";
-        }
-      }
+      const loaded = target === "openrouter" ? await webRefreshOpenRouterModels() : await listModels(target);
+      if (id !== requestId || !overlay.isConnected) return;
+      allModels = loaded;
+      catalogStatus.textContent = `${allModels.length} models · ${target === "openrouter" ? "Live, newest first" : "Provider catalog"} · refreshed ${new Date().toLocaleTimeString()}`;
       renderModels(preferred);
     } catch {
-      status.textContent = "Could not load models.";
+      if (id !== requestId || !overlay.isConnected) return;
+      if (!allModels.length) allModels = await listModels(target).catch(() => []);
+      if (id !== requestId || !overlay.isConnected) return;
+      catalogStatus.textContent = "Live catalog unavailable. Retaining the last available list; it may be outdated. Retry refresh.";
+      renderModels(preferred);
+    } finally {
+      if (id === requestId) refresh.disabled = false;
     }
   };
+  refresh.onclick = () => void loadModels();
+  model.onchange = () => { selectedModel = model.value; describeModel(); };
+  toolsOnly.onchange = () => renderModels();
   search.oninput = () => renderModels();
-  provider.onchange = () => void loadModels();
+  provider.onchange = () => { allModels = []; selectedModel = provider.value === appState.get().provider ? appState.get().model : ""; model.replaceChildren(); void loadModels(); };
   favorite.onclick = () => {
     if (!model.value) return;
     if (favorites.has(model.value)) favorites.delete(model.value);
@@ -419,24 +478,24 @@ export function openWebSettings() {
   const key = document.createElement("input");
   key.type = "password";
   key.autocomplete = "off";
-  key.placeholder = "Provider API key (stored in this browser)";
+  key.placeholder = "Enter provider key";
   const exaKey = document.createElement("input");
   exaKey.type = "password";
-  exaKey.placeholder = "Exa API key (optional enhancement)";
+  exaKey.placeholder = "Optional Exa key";
   const firecrawlKey = document.createElement("input");
   firecrawlKey.type = "password";
-  firecrawlKey.placeholder = "Firecrawl API key (optional enhancement)";
+  firecrawlKey.placeholder = "Optional Firecrawl key";
   const limit = document.createElement("input");
   limit.type = "number";
   limit.min = "0";
   limit.step = "1";
-  limit.placeholder = "Daily spend limit (USD)";
+  limit.placeholder = "Target in USD";
   limit.value = localStorage.getItem("openplanter:spend-limit") || "";
   keysGrid.append(
     field("Provider API key", key, "Stored in local browser storage in the current web architecture.", true),
     field("Exa research key", exaKey, "Optional. Built-in OpenRouter web search does not need this."),
     field("Firecrawl research key", firecrawlKey, "Optional. Built-in OpenRouter web search does not need this."),
-    field("Daily spend limit", limit)
+    field("Daily spend target", limit, "Advisory only; not enforced by this app. Set a hard limit on your provider API key.")
   );
   const keysNote = document.createElement("p");
   keysNote.className = "settings-hint settings-span-2";
@@ -465,8 +524,9 @@ export function openWebSettings() {
 
   save.onclick = async () => {
     try {
+      if (!model.value) throw new Error("Choose a model before saving.");
       const partial: any = { provider: provider.value, model: model.value };
-      if (reasoning.value !== "off") partial.reasoning_effort = reasoning.value;
+      partial.reasoning_effort = reasoning.value === "off" ? "" : reasoning.value;
       const config = await updateConfig(partial);
       appState.update((state) => ({
         ...state,
@@ -524,9 +584,10 @@ export function openWebSettings() {
 
   overlay.appendChild(panel);
   overlay.onclick = (event) => {
-    if (event.target === overlay) overlay.remove();
+    if (event.target === overlay) dismiss();
   };
   document.body.appendChild(overlay);
+  close.focus();
   showTab("model");
   void loadModels();
 }

@@ -1,6 +1,43 @@
 import type { GraphData } from "./types";
 
 type SourceDocument = { name: string; content: string; createdAt: string };
+
+export function getNodeProvenance(graph: GraphData, nodeId: string): GraphData["nodes"] {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  const incoming = new Map<string, string[]>();
+  const citations = new Map<string, string[]>();
+  for (const edge of graph.edges) {
+    incoming.set(edge.target, [...(incoming.get(edge.target) || []), edge.source]);
+    if (edge.label === "cites" || edge.label === "references") citations.set(edge.source, [...(citations.get(edge.source) || []), edge.target]);
+  }
+  const visited = new Set<string>();
+  const sources = new Map<string, GraphData["nodes"][number]>();
+  const queue = [nodeId];
+  while (queue.length) {
+    const id = queue.pop()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const node = nodes.get(id);
+    if (!node) continue;
+    if (node.node_type === "source") sources.set(id, node);
+    if (node.parent_id) queue.push(node.parent_id);
+    queue.push(...(incoming.get(id) || []));
+  }
+  // Include citations from supporting documents, not unrelated entities sharing them.
+  const references = [...sources.keys()];
+  const followed = new Set<string>();
+  while (references.length) {
+    const id = references.pop()!;
+    if (followed.has(id)) continue;
+    followed.add(id);
+    for (const target of citations.get(id) || []) {
+      const node = nodes.get(target);
+      if (node?.node_type === "source") { sources.set(target, node); references.push(target); }
+    }
+  }
+  return [...sources.values()];
+}
+
 export function buildResearchGraph(documents: SourceDocument[]): GraphData {
   const nodes = new Map<string, GraphData["nodes"][number]>();
   const edges = new Map<string, GraphData["edges"][number]>();

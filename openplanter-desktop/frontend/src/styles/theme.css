@@ -7,7 +7,8 @@
   --border: #30363d;
   --text-primary: #e6edf3;
   --text-secondary: #8b949e;
-  --text-muted: #484f58;
+  --text-muted: #8b949e;
+  color-scheme: dark;
   --accent: #58a6ff;
   --accent-hover: #79c0ff;
   --success: #3fb950;
@@ -45,7 +46,8 @@ html[data-theme="light"] {
   --border: #c9d1d9;
   --text-primary: #1f2328;
   --text-secondary: #59636e;
-  --text-muted: #8c959f;
+  --text-muted: #59636e;
+  color-scheme: light;
   --accent: #0969da;
   --accent-hover: #0550ae;
 }

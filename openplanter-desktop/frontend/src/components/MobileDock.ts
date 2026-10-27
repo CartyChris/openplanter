@@ -71,14 +71,20 @@ export function createMobileDock(actions: MobileDockActions): HTMLElement {
   const settingsButton = button("Settings", "settings", actions.openSettings);
   const moreButton = button("More", "more", () => {
     const { backdrop, body } = openSheet("More");
-    const dashboard = button("Dashboard", "dashboard", () => {
+    const dashboard = button("Sources & activity", "dashboard", () => {
       backdrop.remove();
       actions.openDashboard();
     });
+    const graph = button("Knowledge graph", "knowledge-graph", () => {
+      backdrop.remove();
+      document.body.classList.add("graph-mobile-open");
+      window.dispatchEvent(new Event("resize"));
+      document.querySelector<HTMLButtonElement>(".graph-mobile-close")?.focus();
+    });
     const hint = document.createElement("p");
     hint.className = "mobile-sheet-hint";
-    hint.textContent = "Desktop graph and advanced workspace views remain available from Dashboard/Research.";
-    body.append(dashboard, hint);
+    hint.textContent = "Inspect linked evidence, source URLs, search requests and provider-reported activity.";
+    body.append(dashboard, graph, hint);
   });
 
   dock.append(newButton, threadsButton, researchButton, settingsButton, moreButton);

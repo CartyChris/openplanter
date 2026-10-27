@@ -1,0 +1,10 @@
+{
+  "name": "OpenPlanter — Evidence-first research",
+  "short_name": "OpenPlanter",
+  "description": "Source-linked research, knowledge graphs and transparent agent activity.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#161b22",
+  "icons": [{ "src": "/icon.png", "sizes": "32x32", "type": "image/png", "purpose": "any" }]
+}

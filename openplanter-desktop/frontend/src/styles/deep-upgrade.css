@@ -28,6 +28,7 @@ dialog::backdrop { background: rgb(0 0 0 / 65%); }
   border-radius: 6px; padding: 10px 12px; font: inherit; min-height: 44px;
 }
 .research-dialog input, .research-dialog textarea, .research-dialog select { font-size: 16px; }
+.chat-mode-select { background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; font: inherit; min-height: 44px; }
 .research-dialog button { cursor: pointer; }
 .research-dialog button:hover { border-color: var(--accent); }
 .research-dialog :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -92,7 +93,42 @@ html[data-reduced-motion="true"] *::after {
 .settings-panel.settings-panel-v2 {
   width: min(780px, calc(100vw - 32px));
   gap: 14px;
+  overflow: hidden;
+  min-width: 0;
 }
+.settings-panel-v2 > h2,
+.settings-panel-v2 > .settings-tabs,
+.settings-panel-v2 > .settings-actions,
+.settings-panel-v2 > .settings-status { flex-shrink: 0; }
+.settings-panels { min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 2px; }
+.settings-panel :is(label, section, .settings-grid, .subagent-list, .subagent-card) { min-width: 0; }
+.settings-panel :is(input:not([type="checkbox"]), select, textarea) { width: 100%; min-width: 0; max-width: 100%; font-size: 16px; min-height: 44px; }
+.settings-panel label { color: var(--text-secondary); font-size: 12px; letter-spacing: .025em; }
+.settings-panel button { min-height: 44px; touch-action: manipulation; }
+.settings-panel :is(p, small, label, h3) { overflow-wrap: anywhere; }
+.settings-panel input[type="checkbox"] { flex: 0 0 22px; width: 22px; height: 22px; accent-color: var(--accent); }
+.settings-panel .settings-check { min-height: 44px; }
+.settings-panel input::placeholder, .settings-panel textarea::placeholder { color: var(--text-secondary); opacity: .8; }
+.settings-panel .settings-status:empty { display: none; }
+.settings-panel :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.splash-compact, .graph-mobile-close { display: none; }
+.graph-toolbar { flex-wrap: wrap; }
+.graph-toolbar button { padding: 8px; min-height: 44px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-secondary); color: var(--text-primary); }
+.graph-toolbar select { min-width: 0; }
+.settings-panel .settings-save { color: #0d1117 !important; font-weight: 600; }
+.catalog-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.catalog-controls > * { flex: 1 1 160px; min-width: 0; }
+.catalog-details { color: var(--text-secondary); line-height: 1.6; font-size: 13px; overflow-wrap: anywhere; }
+.research-activity-body { display: flex; flex-direction: column; gap: 16px; }
+.research-activity-list { display: flex; flex-direction: column; gap: 12px; }
+.research-activity-card, .node-provenance { padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); min-width: 0; }
+.research-activity-card h3, .node-provenance h3 { font-size: 14px; margin-bottom: 8px; color: var(--text-primary); }
+.research-activity-card p, .node-provenance p { color: var(--text-secondary); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.research-activity-card a, .node-provenance a, .node-provenance button { display: block; color: var(--accent); padding-block: 12px; min-height: 44px; font-size: 13px; overflow-wrap: anywhere; text-align: left; }
+.research-activity-card summary { padding-block: 12px; min-height: 44px; cursor: pointer; color: var(--text-primary); font-size: 13px; }
+.node-provenance { margin-top: 16px; }
+.node-provenance button { width: 100%; white-space: normal; }
+.research-dashboard { height: min(850px, 90dvh); }
 
 .settings-tabs {
   display: flex;
@@ -127,9 +163,9 @@ html[data-reduced-motion="true"] *::after {
 .settings-span-2 { grid-column: 1 / -1; }
 .settings-panel small,
 .settings-hint {
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.45;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
   text-transform: none;
   letter-spacing: normal;
 }
@@ -181,8 +217,9 @@ html[data-reduced-motion="true"] *::after {
 }
 .subagent-remove { color: var(--error) !important; }
 .settings-actions {
-  position: sticky;
-  bottom: -22px;
+  position: relative;
+  bottom: auto;
+  flex-shrink: 0;
   z-index: 3;
   display: flex;
   gap: 8px;
@@ -248,7 +285,7 @@ html[data-reduced-motion="true"] *::after {
   .web-toolbar::-webkit-scrollbar { display: none; }
   .web-toolbar > span { display: none; }
   .web-toolbar button {
-    min-height: 40px;
+    min-height: 44px;
     white-space: nowrap;
     font-size: 12px;
   }
@@ -259,7 +296,7 @@ html[data-reduced-motion="true"] *::after {
     display: none !important;
     position: fixed;
     inset: 0;
-    z-index: 40;
+    z-index: 60;
   }
   body.graph-mobile-open .graph-pane { display: grid !important; }
 
@@ -328,7 +365,26 @@ html[data-reduced-motion="true"] *::after {
   }
   .message.rendered pre,
   .message.rendered table { overflow-x: auto; }
-  .message.splash { display: none; }
+  .message.splash { display: block; font-size: clamp(12px, 3.3vw, 15px); line-height: 1.35; padding-block: 20px; }
+  .splash-wide { display: none; }
+  .splash-compact { display: block; white-space: pre; }
+  .message { overflow-wrap: anywhere; }
+  .message.rendered table { display: block; }
+  .graph-source-drawer { width: 100%; min-width: 0; max-width: 100vw; height: 100dvh; }
+  .graph-mobile-close { display: block; }
+  .graph-toolbar { flex-wrap: wrap; padding-top: max(8px, env(safe-area-inset-top)); }
+  .graph-pane { grid-template-rows: auto minmax(0, 1fr) auto; padding-bottom: env(safe-area-inset-bottom); }
+  .graph-toolbar .graph-search { flex: 1 1 180px; width: 100%; }
+  .mobile-sheet-body { display: flex; flex-direction: column; gap: 8px; }
+  .graph-toolbar :is(button, select, input) { min-height: 44px; font-size: 16px; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-secondary); color: var(--text-primary); }
+  .graph-toolbar button { min-width: 44px; font-size: 13px; }
+  .graph-toolbar select { flex: 1 1 120px; }
+  .settings-save { color: #0d1117 !important; font-weight: 600; }
+  .graph-detail { max-width: calc(100vw - 24px); max-height: 60dvh; overflow: auto; }
+  .graph-detail-close { min-width: 44px; min-height: 44px; }
+  .input-bar { flex-wrap: wrap; }
+  .input-bar textarea { flex: 1 1 calc(100% - 90px); }
+  .input-bar .chat-mode-select { max-width: 100%; min-height: 44px; font-size: 16px; }
 
   .input-bar {
     width: 100%;
@@ -433,7 +489,14 @@ html[data-reduced-motion="true"] *::after {
   }
   .settings-panel h2 { padding-right: 80px; }
   .settings-close { top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); min-height: 42px; }
-  .settings-tabs { position: sticky; top: 0; z-index: 4; background: var(--bg-secondary); }
+  .settings-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; flex-shrink: 0; background: var(--bg-secondary); padding: 0 0 10px; border-bottom: 1px solid var(--border); }
+  .settings-tab { min-width: 0; min-height: 44px; padding: 8px 4px; font-size: 12px; white-space: normal; }
+  .settings-panel.settings-panel-v2 { gap: 12px; }
+  .settings-panel-v2 > h2 { min-height: 44px; display: flex; align-items: center; font-size: 19px; }
+  .settings-panel-v2 .settings-panels { flex: 1; }
+  .settings-panel-v2 .settings-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); bottom: auto; }
+  .settings-actions button { min-width: 0; white-space: normal; font-size: 13px; }
+  .settings-close { min-width: 64px; }
   .settings-grid,
   .subagent-card { grid-template-columns: 1fr; }
   .settings-span-2,

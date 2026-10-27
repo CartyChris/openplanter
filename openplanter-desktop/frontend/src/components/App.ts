@@ -1,5 +1,6 @@
 /** Root layout component. */
 import { createStatusBar } from "./StatusBar";
+import { welcomeMessage } from "./welcome";
 import { createChatPane } from "./ChatPane";
 import { createGraphPane } from "./GraphPane";
 import { createMobileDock } from "./MobileDock";
@@ -138,7 +139,7 @@ function createToolbar(): HTMLElement {
   toolbar.appendChild(researchBtn);
 
   const dashboardBtn = document.createElement("button");
-  dashboardBtn.textContent = "Dashboard";
+  dashboardBtn.textContent = "Sources & activity";
   dashboardBtn.addEventListener("click", openWebDashboard);
   toolbar.appendChild(dashboardBtn);
   return toolbar;
@@ -212,6 +213,7 @@ async function switchToNewSession(sessionList: HTMLElement): Promise<void> {
     appState.update((state) => ({
       ...state,
       messages: [
+        welcomeMessage(),
         {
           id: crypto.randomUUID(),
           role: "system" as const,
@@ -265,7 +267,7 @@ async function switchToSession(sessionId: string, sessionList: HTMLElement): Pro
     let messages: ChatMessage[] = [];
     try {
       const history = await getSessionHistory(resumed.id);
-      messages = history.map(replayEntryToMessage);
+      messages = history.filter((entry) => entry.role !== "telemetry").map(replayEntryToMessage);
     } catch (error) {
       console.error("Failed to load session history:", error);
     }
