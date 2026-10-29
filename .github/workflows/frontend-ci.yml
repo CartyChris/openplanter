@@ -1,6 +1,9 @@
 name: Frontend CI
 
 on:
+  push:
+    branches:
+      - "v0/repair-graph-build"
   pull_request:
     branches:
       - main
@@ -8,6 +11,11 @@ on:
     paths:
       - "openplanter-desktop/frontend/**"
       - ".github/workflows/frontend-ci.yml"
+      - "api/**"
+      - "server/**"
+      - "package*.json"
+      - "tsconfig.server.json"
+      - "vercel.json"
   workflow_dispatch:
 
 permissions:
@@ -26,16 +34,16 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: openplanter-desktop/frontend/package-lock.json
+      - name: Validate server
+        working-directory: .
+        run: npm ci && npm run check:server && npm run test:server
       - name: Install dependencies
         run: npm ci
       - name: Unit tests
         run: npm test
       - name: Production build
         run: npm run build
-<<<<<<< HEAD
       - name: Install mobile browser engines
         run: npx playwright install --with-deps chromium webkit
       - name: Portrait mobile smoke tests
         run: npx playwright test e2e/mobile.spec.ts --config e2e/playwright.config.ts
-=======
->>>>>>> bf04c546bd2241d6de0718e6f98435b8506b6b14

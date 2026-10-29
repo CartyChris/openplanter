@@ -5,6 +5,7 @@ import { parseAgentContent, stripToolXml, type ContentSegment } from "./contentP
 import MarkdownIt from "markdown-it";
 import hljs from "highlight.js";
 import { downloadText } from "../api/web";
+import { openArtifactPreview } from "./ArtifactPreview";
 
 /** Key argument names for tool call display. */
 const KEY_ARGS: Record<string, string> = {
@@ -302,9 +303,16 @@ export function createChatPane(): HTMLElement {
     el.className = `message ${msg.role}`;
 
     switch (msg.role) {
-      case "splash":
-        el.textContent = msg.content;
+      case "splash": {
+        const wide = document.createElement("span");
+        wide.className = "splash-wide";
+        wide.textContent = msg.content;
+        const compact = document.createElement("span");
+        compact.className = "splash-compact";
+        compact.textContent = " .oOo.\noO.|.Oo     OpenPlanter\nOo.|.oO     Follow the evidence.\n  .|.\n[=====]\n \\___/";
+        el.append(wide, compact);
         break;
+      }
 
       case "step-header":
         el.textContent = msg.content;
@@ -376,6 +384,18 @@ export function createChatPane(): HTMLElement {
               }
             }
           }
+          const openUIMatch = msg.content.match(/```openui\s*([\s\S]*?)```/i);
+          if (openUIMatch) {
+            const reportButton = document.createElement("button");
+            reportButton.className = "artifact-download-button";
+            reportButton.textContent = "Open interactive research report";
+            reportButton.style.minHeight = "44px";
+            reportButton.onclick = async () => {
+              try { (await import("./OpenUIReport")).openOpenUIReport(openUIMatch[1]); }
+              catch { reportButton.textContent = "Report unavailable — original output is shown above"; }
+            };
+            el.appendChild(reportButton);
+          }
           const htmlMatch = msg.content.match(/```html\s*([\s\S]*?)```/i);
           const jsMatch = msg.content.match(/```(?:javascript|js|tsx)\s*([\s\S]*?)```/i);
           if (htmlMatch || jsMatch) {
@@ -384,10 +404,7 @@ export function createChatPane(): HTMLElement {
             artifactButton.textContent = htmlMatch ? "Open HTML artifact" : "Download code artifact";
             artifactButton.addEventListener("click", () => {
               if (htmlMatch) {
-                const blob = new Blob([htmlMatch[1]], { type: "text/html" });
-                const url = URL.createObjectURL(blob);
-                window.open(url, "_blank", "noopener,noreferrer");
-                setTimeout(() => URL.revokeObjectURL(url), 30_000);
+                openArtifactPreview(htmlMatch[1]);
               } else if (jsMatch) {
                 downloadText("openplanter-artifact.js", jsMatch[1], "text/javascript");
               }

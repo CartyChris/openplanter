@@ -40,7 +40,7 @@ describe("browser Control Center", () => {
 
   it("persists web-search mode and appearance preferences", async () => {
     openWebSettings();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(document.querySelector<HTMLSelectElement>('[data-setting="model"]')?.value).toBeTruthy());
 
     const searchMode = document.querySelector('[data-setting="web-search-mode"]') as HTMLSelectElement;
     const accent = document.querySelector('[data-setting="accent"]') as HTMLSelectElement;
@@ -53,6 +53,23 @@ describe("browser Control Center", () => {
     const preferences = getWebPreferences();
     expect(preferences.webSearchMode).toBe("always");
     expect(preferences.accent).toBe("violet");
+  });
+
+  it("refreshes the catalog without silently changing a filtered selection", async () => {
+    openWebSettings();
+    await vi.waitFor(() => expect(document.querySelector<HTMLSelectElement>('[data-setting="model"]')?.options.length).toBeGreaterThan(0));
+    const model = document.querySelector<HTMLSelectElement>('[data-setting="model"]')!;
+    model.value = "openai/gpt-5.5";
+    model.dispatchEvent(new Event("change"));
+    const search = document.querySelector<HTMLInputElement>('input[type="search"]')!;
+    search.value = "no matching model";
+    search.dispatchEvent(new Event("input"));
+    expect(model.value).toBe("openai/gpt-5.5");
+    const refresh = [...document.querySelectorAll("button")].find((button) => button.textContent === "Refresh model catalog")!;
+    refresh.click();
+    await vi.waitFor(() => expect(refresh.disabled).toBe(false));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(model.value).toBe("openai/gpt-5.5");
   });
 
   it("can add a configurable subagent card", async () => {

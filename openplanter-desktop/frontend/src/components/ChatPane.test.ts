@@ -80,7 +80,9 @@ describe("createChatPane", () => {
     }));
     const msg = pane.querySelector(".message.splash");
     expect(msg).not.toBeNull();
-    expect(msg!.textContent).toBe("SPLASH ART");
+    expect(msg!.querySelector(".splash-wide")!.textContent).toBe("SPLASH ART");
+    expect(msg!.querySelector(".splash-compact")!.textContent).toContain("OpenPlanter");
+    expect(msg!.querySelector(".splash-compact")!.textContent).toContain("[=====]");
   });
 
   it("renders step-header message", () => {

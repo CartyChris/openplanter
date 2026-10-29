@@ -1,5 +1,6 @@
 /** Root layout component. */
 import { createStatusBar } from "./StatusBar";
+import { welcomeMessage } from "./welcome";
 import { createChatPane } from "./ChatPane";
 import { createGraphPane } from "./GraphPane";
 import { createMobileDock } from "./MobileDock";
@@ -93,6 +94,12 @@ export function createApp(root: HTMLElement): void {
   renderSettings();
 
   void loadSessions(sessionList);
+  window.addEventListener("research-restored", async () => {
+    await loadSessions(sessionList);
+    const sessions = await listSessions(1);
+    if (sessions[0]) await switchToSession(sessions[0].id, sessionList);
+    else appState.update((state) => ({ ...state, sessionId: null, messages: [] }));
+  });
   appState.subscribe(() => highlightActiveSession(sessionList));
   void loadCredentials(credsDisplay);
 }
@@ -102,7 +109,7 @@ function createToolbar(): HTMLElement {
   toolbar.className = "web-toolbar";
 
   const badge = document.createElement("span");
-  badge.textContent = isTauri() ? "DESKTOP" : "WEB MODE · LOCAL DATA";
+  badge.textContent = isTauri() ? "DESKTOP" : "RESEARCH WORKSPACE";
   toolbar.appendChild(badge);
 
   const exportBtn = document.createElement("button");
@@ -132,7 +139,7 @@ function createToolbar(): HTMLElement {
   toolbar.appendChild(researchBtn);
 
   const dashboardBtn = document.createElement("button");
-  dashboardBtn.textContent = "Dashboard";
+  dashboardBtn.textContent = "Sources & activity";
   dashboardBtn.addEventListener("click", openWebDashboard);
   toolbar.appendChild(dashboardBtn);
   return toolbar;
@@ -150,7 +157,7 @@ function openBackupMenu(toolbar: HTMLElement, backupBtn: HTMLButtonElement) {
   const findingsBtn = document.createElement("button");
   findingsBtn.textContent = "Export findings";
   const wipeBtn = document.createElement("button");
-  wipeBtn.textContent = "Wipe all browser data";
+  wipeBtn.textContent = "Delete workspace research";
   wipeBtn.className = "danger-button";
 
   const picker = document.createElement("input");
@@ -168,11 +175,11 @@ function openBackupMenu(toolbar: HTMLElement, backupBtn: HTMLButtonElement) {
   findingsBtn.onclick = () => exportFindings();
   picker.onchange = () =>
     picker.files?.[0] &&
-    importWorkspace(picker.files[0]).catch(() => alert("That backup file is not valid."));
+    importWorkspace(picker.files[0]).catch((error) => alert(error instanceof Error ? error.message : "Backup import failed."));
   folderPicker.onchange = () => folderPicker.files && importFolder(folderPicker.files);
   wipeBtn.onclick = () => {
-    if (confirm("Wipe all sessions, reports, notes, settings, and credentials from this browser?")) {
-      wipeWorkspace();
+    if (confirm("Delete all research, including the cloud copy if signed in, and remove this browser's saved settings and credentials? This cannot be undone. Export a backup first.")) {
+      void wipeWorkspace().catch((error) => alert(error instanceof Error ? error.message : "Deletion failed."));
     }
   };
 
@@ -206,6 +213,7 @@ async function switchToNewSession(sessionList: HTMLElement): Promise<void> {
     appState.update((state) => ({
       ...state,
       messages: [
+        welcomeMessage(),
         {
           id: crypto.randomUUID(),
           role: "system" as const,
@@ -259,7 +267,7 @@ async function switchToSession(sessionId: string, sessionList: HTMLElement): Pro
     let messages: ChatMessage[] = [];
     try {
       const history = await getSessionHistory(resumed.id);
-      messages = history.map(replayEntryToMessage);
+      messages = history.filter((entry) => entry.role !== "telemetry").map(replayEntryToMessage);
     } catch (error) {
       console.error("Failed to load session history:", error);
     }

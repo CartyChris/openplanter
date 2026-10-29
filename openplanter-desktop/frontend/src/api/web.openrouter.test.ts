@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildWebChatBody, formatProviderError } from "./web";
 
 describe("OpenRouter browser routing", () => {
+  it("forwards selected reasoning effort without forcing it when off", () => {
+    expect(buildWebChatBody("openrouter", "test/model", [], undefined, "high").reasoning).toEqual({ effort: "high" });
+    expect(buildWebChatBody("openrouter", "test/model", [], undefined, "").reasoning).toBeUndefined();
+    expect(buildWebChatBody("openai", "test/model", [], undefined, "high").reasoning).toBeUndefined();
+  });
   it("does not force the legacy web plugin or ZDR policy", () => {
     const body = buildWebChatBody("openrouter", "meta/muse-spark-1.2-contributor", [
       { role: "user", content: "Hi" },

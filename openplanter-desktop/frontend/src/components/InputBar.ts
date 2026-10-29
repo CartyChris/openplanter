@@ -15,7 +15,7 @@ export function createInputBar(): HTMLElement {
 
   const modeSelect = document.createElement("select");
   modeSelect.className = "chat-mode-select";
-  for (const mode of ["Research", "Artifact: HTML", "Artifact: 3D", "Tool calling", "Subagents"]) {
+  for (const mode of ["Research", "OpenUI report", "Artifact: HTML", "Artifact: 3D", "Tool calling", "Subagents"]) {
     const option = document.createElement("option");
     option.value = mode;
     option.textContent = mode;
@@ -57,7 +57,9 @@ export function createInputBar(): HTMLElement {
     if (!text) return;
     const mode = modeSelect.value;
     const modePrompt = mode === "Research" ? "" : `\n\n[OpenPlanter mode: ${mode}. Use available tools and produce a self-contained deliverable when applicable. For Subagents, delegate focused source-finding tasks and reconcile their evidence.]`;
-    const objective = `${text}${modePrompt}`;
+    const openUI = mode === "OpenUI report" ? (await import("./OpenUIReport")).openUIInstructions() : "";
+    const artifactPolicy = mode.startsWith("Artifact:") ? "\nReturn a complete self-contained HTML document in a fenced html code block, with inline CSS and JavaScript. The preview blocks all network requests, external scripts, forms, and popups. Use only inline or data-URL assets. Show source citations as text and never invent evidence." : "";
+    const objective = `${text}${modePrompt}${artifactPolicy}${openUI ? `\n\n${openUI}` : ""}`;
 
     // Add to input history
     appState.update((s) => ({

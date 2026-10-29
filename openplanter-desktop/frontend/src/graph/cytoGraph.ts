@@ -346,14 +346,20 @@ export function initGraph(container: HTMLElement, data: GraphData): void {
     container,
     elements: toCytoElements(data),
     style: graphStyle,
-    layout: getLayoutOptions(defaultLayout),
+    layout: container.clientWidth > 0 && container.clientHeight > 0 ? getLayoutOptions(defaultLayout) : { name: "preset" },
     minZoom: 0.1,
     maxZoom: 5,
     wheelSensitivity: 0.3,
   });
 
+  let wasVisible = container.clientWidth > 0 && container.clientHeight > 0;
   resizeObserver = new ResizeObserver(() => {
-    if (cy) cy.resize();
+    const visible = container.clientWidth > 0 && container.clientHeight > 0;
+    if (cy && visible) {
+      cy.resize();
+      if (!wasVisible) cy.layout(getLayoutOptions(currentLayout)).run();
+    }
+    wasVisible = visible;
   });
   resizeObserver.observe(container);
 }

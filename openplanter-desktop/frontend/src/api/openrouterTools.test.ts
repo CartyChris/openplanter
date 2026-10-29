@@ -8,6 +8,17 @@ import {
 } from "./openrouterTools";
 
 describe("OpenRouter server tools", () => {
+  it("uses unique valid worker names and enforces worker budgets", () => {
+    const preferences = normalizePreferences({ subagentsEnabled: true });
+    preferences.subagents = [preferences.subagents[0], { ...preferences.subagents[0], id: "second" }];
+    const tools = buildSubagentTools(preferences, "selected/model");
+    expect(new Set(tools.map((tool) => tool.parameters.name)).size).toBe(2);
+    for (const tool of tools) {
+      expect(tool.parameters.name).toMatch(/^[a-zA-Z0-9 _-]{1,64}$/);
+      expect(tool.parameters.max_completion_tokens).toBe(preferences.subagents[0].maxOutputTokens);
+      expect(tool.parameters.max_tool_calls).toBeLessThanOrEqual(25);
+    }
+  });
   it("adds built-in web search and fetch without external API keys", () => {
     const preferences = normalizePreferences({
       webSearchMode: "auto",

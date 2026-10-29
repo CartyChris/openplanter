@@ -83,6 +83,10 @@ export interface ModelInfo {
   id: string;
   name: string | null;
   provider: string;
+  created?: number;
+  contextLength?: number;
+  supportedParameters?: string[];
+  pricing?: { prompt: string; completion: string };
 }
 
 export interface SessionInfo {
